@@ -1,0 +1,36 @@
+// protoc -I proto/ proto/ims.proto --go_out=plugins=grpc:proto
+syntax = "proto3";
+
+option objc_class_prefix = "IMS";
+
+package ims;
+
+// The InstanceMetaService is responsible for serving and renewing certificates
+// This defines the RPC protocoll between the command line tool and the service.
+service InstanceMetaService {
+  rpc Status(Void) returns (StatusReply) {}
+  rpc Stop(Void) returns (StopReply) {}
+  rpc AssumeRole(AssumeRoleRequest) returns (StatusReply) {}
+  rpc RetrieveRole(AssumeRoleRequest) returns (StatusReply) {}
+}
+
+message Void {}
+
+message StatusReply {
+  string Error = 1;
+
+  string Role = 2;
+  string AccessKeyId = 3;
+  string SecretAccessKey = 4;
+  string SessionToken = 5;
+  string Expiration = 6;
+  }
+
+message StopReply {
+  string Error = 1;
+}
+
+message AssumeRoleRequest {
+  string Name = 1;
+  string Mfa = 2;
+}

@@ -1,0 +1,20 @@
+---
+# The default profile should only be able to assume roles. To assume these roles
+# the session should be authorized with a MFA token. With this set up your keys
+# will not be usable without multi factor authentication.
+default:
+  aws_access_key_id: xxxxxxxxxxxxxxxxxxxx
+  aws_secret_access_key: yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+  region: eu-west-1
+  role_session_name: yourusername
+  mfa_serial: arn:aws:iam::123456789012:mfa/yourusername
+
+admin:
+  role_arn: arn:aws:iam::123456789012:role/admin
+  source_profile: default
+  region: eu-west-1
+
+readonly:
+  role_arn: arn:aws:iam::123456789012:role/readonly
+  source_profile: default
+  region: eu-west-1
