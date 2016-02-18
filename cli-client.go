@@ -16,6 +16,7 @@ import (
 
 	pb "github.com/otm/ims/proto"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/grpclog"
 )
 
 type cliClient struct {
@@ -30,7 +31,9 @@ func newCliClient(address string) *cliClient {
 		return net.DialTimeout("unix", addr, timeout)
 	}
 
-	conn, err := grpc.Dial(address, grpc.WithInsecure(), grpc.WithDialer(dialer))
+	grpclog.SetLogger(log.New(ioutil.Discard, "", log.LstdFlags))
+
+	conn, err := grpc.Dial(address, grpc.WithInsecure(), grpc.WithDialer(dialer), grpc.WithTimeout(1*time.Second))
 	if err != nil {
 		log.Fatalf("did not connect: %v\n", err)
 	}
@@ -44,6 +47,7 @@ func newCliClient(address string) *cliClient {
 // StartService bootstraps the metadata service
 func StartService(args *Start) {
 	log := &ConsoleLogger{}
+	config := Config{}
 
 	// TODO: Move to function and use a default configuration file
 	if args.ConfigFile != "" {
@@ -76,6 +80,10 @@ func StartService(args *Start) {
 		log.Fatalf("Could not startup the metadata interface: %s\n", err)
 	}
 
+	if args.MFA == "" {
+		args.MFA = checkMFA(config)
+	}
+
 	credsManager := NewCredentialsExpirationManager(config, args.MFA)
 
 	mds, metadataError := NewMetadataService(listener, credsManager)
@@ -95,26 +103,15 @@ func StartService(args *Start) {
 	terminate := make(chan os.Signal)
 	signal.Notify(terminate, syscall.SIGINT, syscall.SIGTERM)
 
-	// SIGUSR1 and SIGUSR2 for controlling log level
-	// respectively.
-	debugEnable := make(chan os.Signal)
-	debugDisable := make(chan os.Signal)
-	signal.Notify(debugEnable, syscall.SIGUSR1)
-	signal.Notify(debugDisable, syscall.SIGUSR2)
-
 	log.Info("Instance Metadata Service is online, waiting for termination.\n")
+	defer log.Info("Caught signal; shutting down.\n")
+
 	for {
 		select {
 		case <-stop:
 			return
 		case <-terminate:
 			return
-		case <-debugEnable:
-			log.Info("Enabling debug mode.\n")
-			log.Level(Debug)
-		case <-debugDisable:
-			log.Info("Disabling debug mode.\n")
-			log.Level(Info)
 		}
 	}
 }
@@ -124,7 +121,6 @@ func (c *cliClient) close() error {
 }
 
 func (c *cliClient) stop(args *Stop) error {
-
 	r, err := c.srv.Stop(context.Background(), &pb.Void{})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "communication error: %v\n", err)
@@ -142,24 +138,39 @@ func (c *cliClient) stop(args *Stop) error {
 }
 
 func (c *cliClient) status(args *Status) error {
+	status := "up"
+
 	r, err := c.srv.Status(context.Background(), &pb.Void{})
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "communication error: %v\n", err)
-		return err
+		r = &pb.StatusReply{
+			Role:            "n/a",
+			AccessKeyId:     "n/a",
+			SecretAccessKey: "n/a",
+			SessionToken:    "n/a",
+			Expiration:      "n/a",
+		}
+		status = "down"
+		defer fmt.Fprintf(os.Stderr, "communication error: %v\n", err)
 	}
 
 	if r.Error != "" {
-		fmt.Fprintf(os.Stderr, "error stopping server: %v\n", r.Error)
+		status = "error"
+		defer fmt.Fprintf(os.Stderr, "error retrieving status: %v\n", r.Error)
+	}
+
+	fmt.Printf("Server:          %v\n", status)
+	fmt.Printf("Role:            %v\n", r.Role)
+
+	if args.Verbose == false {
 		return err
 	}
 
-	fmt.Printf("Role:            %v\n", r.Role)
 	fmt.Printf("AccessKeyId:     %v\n", r.AccessKeyId)
 	fmt.Printf("SecretAccessKey: %v\n", r.SecretAccessKey)
 	fmt.Printf("SessionToken:    %v\n", r.SessionToken)
 	fmt.Printf("Expiration:      %v\n", r.Expiration)
 
-	return nil
+	return err
 }
 
 func (c *cliClient) assumeRole(role string, args *SwitchProfile) error {
@@ -176,4 +187,21 @@ func (c *cliClient) assumeRole(role string, args *SwitchProfile) error {
 
 	fmt.Printf("Assumed: %v\n", role)
 	return nil
+}
+
+func checkMFA(config Config) string {
+	var MFA string
+
+	defaultProfile := config.profiles["default"]
+	if defaultProfile.MFASerial == "" {
+		return ""
+	}
+
+	fmt.Printf("Enter MFA: ")
+	_, err := fmt.Scanf("%s", &MFA)
+	if err != nil {
+		log.Fatalf("err: %v\n", err)
+	}
+
+	return MFA
 }

@@ -16,11 +16,11 @@ type CliHandler struct {
 	address      string
 	stop         chan struct{}
 	log          Logger
-	credsManager *credentialsExpirationManager
+	credsManager *CredentialsExpirationManager
 }
 
 // NewCliHandler returns a cliHandler
-func NewCliHandler(address string, credsManager *credentialsExpirationManager, stop chan struct{}) *CliHandler {
+func NewCliHandler(address string, credsManager *CredentialsExpirationManager, stop chan struct{}) *CliHandler {
 	fmt.Println("new cli handler")
 	return &CliHandler{address: address, log: &ConsoleLogger{}, stop: stop, credsManager: credsManager}
 }
@@ -49,12 +49,8 @@ func (h *CliHandler) Start() error {
 
 // Status handles the cli status command
 func (h *CliHandler) Status(ctx context.Context, in *pb.Void) (*pb.StatusReply, error) {
-	creds, err := h.credsManager.GetCredentials()
-	if err != nil {
-		return &pb.StatusReply{
-			Error: err.Error(),
-		}, nil
-	}
+	creds := h.credsManager.GetCredentials()
+
 	return &pb.StatusReply{
 		Error:           "",
 		Role:            h.credsManager.role,
@@ -81,10 +77,7 @@ func (h *CliHandler) AssumeRole(ctx context.Context, in *pb.AssumeRoleRequest) (
 		return nil, err
 	}
 
-	creds, err := h.credsManager.GetCredentials()
-	if err != nil {
-		return nil, err
-	}
+	creds := h.credsManager.GetCredentials()
 
 	return &pb.StatusReply{
 		Error:           "",

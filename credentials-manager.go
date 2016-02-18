@@ -20,13 +20,19 @@ var (
 )
 
 // CredentialsExpirationManager is responsible for renewing a set of credentials
-type credentialsExpirationManager struct {
+type CredentialsExpirationManager struct {
+	// This is the default session and information
 	defaultSession     *session.Session
 	defaultCredentials *sts.Credentials
 	defaultSTSClient   *sts.STS
-	config             Config
-	roleSessionName    string
 
+	// config is the loaded configuration
+	config Config
+
+	// roleSessionName is used when assuming roles to keep track of the user
+	roleSessionName string
+
+	// This is the current active credentials
 	credLock    sync.Mutex
 	role        string
 	credentials *sts.Credentials
@@ -35,13 +41,13 @@ type credentialsExpirationManager struct {
 // NewCredentialsExpirationManager returns a credentialsExpirationManager
 // It creates a session, then it will call GetSessionToken to retrieve a pair of
 // temporary credentials.
-func NewCredentialsExpirationManager(conf Config, mfa string) *credentialsExpirationManager {
-	defaultProfile, ok := config.profiles["default"]
+func NewCredentialsExpirationManager(conf Config, mfa string) *CredentialsExpirationManager {
+	defaultProfile, ok := conf.profiles["default"]
 	if !ok {
 		log.Fatalf("No default profile, quitting")
 	}
 
-	cm := &credentialsExpirationManager{
+	cm := &CredentialsExpirationManager{
 		role:            "default",
 		config:          conf,
 		roleSessionName: defaultProfile.RoleSessionName,
@@ -91,16 +97,19 @@ func NewCredentialsExpirationManager(conf Config, mfa string) *credentialsExpira
 	return cm
 }
 
-func (m *credentialsExpirationManager) Refresher() {
+// Refresher starts a Go routine and refreshes the credentials
+func (m *CredentialsExpirationManager) Refresher() {
 	for {
 		select {
 		case <-time.After(10 * time.Second):
-			m.maybeRefreshCredentials()
+			m.refreshCredentials()
 		}
 	}
 }
 
-func (m *credentialsExpirationManager) AssumeRole(name, MFA string) error {
+// AssumeRole changes (assumes) the role `name`. An optional MFA can be passed
+// to the function, if set to "" the MFA is ignored
+func (m *CredentialsExpirationManager) AssumeRole(name, MFA string) error {
 	profile, ok := m.config.profiles[name]
 	if !ok {
 		return fmt.Errorf("unknown profile: %v", name)
@@ -110,17 +119,21 @@ func (m *credentialsExpirationManager) AssumeRole(name, MFA string) error {
 	return m.AssumeRoleARN(name, profile.RoleARN, profile.MFASerial, MFA)
 }
 
-func (m *credentialsExpirationManager) RetrieveRole(name, MFA string) (*sts.Credentials, error) {
+// RetrieveRole will assume and fetch temporary credentials, but does not update
+// the role and credentials stored by the manager.
+func (m *CredentialsExpirationManager) RetrieveRole(name, MFA string) (*sts.Credentials, error) {
 	profile, ok := m.config.profiles[name]
 	if !ok {
 		return nil, fmt.Errorf("unknown profile: %v", name)
 	}
 
-	return m.RetrieveRoleARN(name, profile.RoleARN, profile.MFASerial, MFA)
+	return m.RetrieveRoleARN(profile.RoleARN, profile.MFASerial, MFA)
 }
 
-func (m *credentialsExpirationManager) RetrieveRoleARN(name, RoleARN, MFASerial, MFA string) (*sts.Credentials, error) {
-	if name == "default" {
+// RetrieveRoleARN assumes and fetch temporary credentials based on the RoleArn
+func (m *CredentialsExpirationManager) RetrieveRoleARN(RoleARN, MFASerial, MFA string) (*sts.Credentials, error) {
+	// If the default profile is requested do return the default credentials
+	if m.config.profiles["default"].RoleARN == RoleARN {
 		return m.defaultCredentials, nil
 	}
 
@@ -149,44 +162,53 @@ func (m *credentialsExpirationManager) RetrieveRoleARN(name, RoleARN, MFASerial,
 	return resp.Credentials, nil
 }
 
-func (m *credentialsExpirationManager) AssumeRoleARN(name, RoleARN, MFASerial, MFA string) error {
-	creds, err := m.RetrieveRoleARN(name, RoleARN, MFASerial, MFA)
+// AssumeRoleARN assumes the role specified by RoleARN and will store it as
+// with the name specified.
+func (m *CredentialsExpirationManager) AssumeRoleARN(name, RoleARN, MFASerial, MFA string) error {
+	creds, err := m.RetrieveRoleARN(RoleARN, MFASerial, MFA)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("setting credentials: ", creds, name)
-	m.SetCredentials(creds, name)
+	m.setCredentials(creds, name)
 	return nil
 }
 
-func (m *credentialsExpirationManager) SetCredentials(newCreds *sts.Credentials, role string) {
+// SetCredentials updates the stored credentials and the name of the role associated
+// with the credentials
+func (m *CredentialsExpirationManager) setCredentials(newCreds *sts.Credentials, role string) {
+	m.credLock.Lock()
+	defer m.credLock.Unlock()
+
 	m.credentials = newCreds
 	m.role = role
 }
 
-func (m *credentialsExpirationManager) GetCredentials() (*sts.Credentials, error) {
-	if m.credentials == nil {
-		return nil, errors.New("No credentials set")
-	}
+// GetCredentials returns the current saved credentials. The returned credentials
+// are copied before they are returned.
+func (m *CredentialsExpirationManager) GetCredentials() *sts.Credentials {
+	m.credLock.Lock()
+	defer m.credLock.Unlock()
 
-	err := m.maybeRefreshCredentials()
-	if err != nil {
-		return nil, err
+	return &sts.Credentials{
+		AccessKeyId:     aws.String(*m.credentials.AccessKeyId),
+		Expiration:      aws.Time(*m.credentials.Expiration),
+		SecretAccessKey: aws.String(*m.credentials.SecretAccessKey),
+		SessionToken:    aws.String(*m.credentials.SessionToken),
 	}
-
-	return m.credentials, nil
 }
 
-func (m *credentialsExpirationManager) maybeRefreshCredentials() error {
+func (m *CredentialsExpirationManager) refreshCredentials() error {
 	if m.defaultSTSClient == nil {
 		fmt.Println("Skipping refresh: error: no default STS client")
 		return errors.New("No client set for refreshing credentials")
 	}
 
-	if time.Now().Add(600 * time.Second).Before(*m.credentials.Expiration) {
+	creds := m.GetCredentials()
+
+	if time.Now().Add(600 * time.Second).Before(*creds.Expiration) {
 		// We no not need to refresh
-		log.Println("Skipping refresh of credentials: ", m.credentials.Expiration)
+		log.Println("Skipping refresh of credentials: ", creds.Expiration)
 		return nil
 	}
 

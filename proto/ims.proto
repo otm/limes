@@ -1,4 +1,3 @@
-// protoc -I proto/ proto/ims.proto --go_out=plugins=grpc:proto
 syntax = "proto3";
 
 option objc_class_prefix = "IMS";

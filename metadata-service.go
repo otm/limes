@@ -38,7 +38,7 @@ type MetadataService interface {
 
 // CredentialsSource is used for retreiving and renewing AWS credentials
 type CredentialsSource interface {
-	GetCredentials() (*sts.Credentials, error)
+	GetCredentials() *sts.Credentials
 }
 
 /*
@@ -123,12 +123,7 @@ func (mds *metadataService) getPublicDNS(w http.ResponseWriter, r *http.Request)
 Returns credentials for interested clients.
 */
 func (mds *metadataService) getCredentials(w http.ResponseWriter, r *http.Request) {
-	creds, err := mds.creds.GetCredentials()
-	if err != nil {
-		w.WriteHeader(500)
-		fmt.Fprint(w, err.Error())
-		return
-	}
+	creds := mds.creds.GetCredentials()
 
 	resp := &securityCredentialsResponse{
 		Code:            "Success",

@@ -1,19 +1,40 @@
 ---
+# The default profile is the profile that is loaded first, and the only role that
+# should need access keys. The default profile is *required*.
+#
+#
 # The default profile should only be able to assume roles. To assume these roles
 # the session should be authorized with a MFA token. With this set up your keys
 # will not be usable without multi factor authentication.
 default:
+  # aws_access_key_id is required on the default profile
   aws_access_key_id: xxxxxxxxxxxxxxxxxxxx
+
+  # aws_secret_access_key is required on the default profile
   aws_secret_access_key: yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
-  region: eu-west-1
+
+  # role_session_name specifies the name used when assuming roles. Normaly a
+  # sensible value is your username.
   role_session_name: yourusername
+
+  # region is used when connection to AWS and you can retrieve it from the
+  # metadata service
+  region: eu-west-1
+
+  # mfa_serial if present will prompt the user for an MFA when the service is
+  # started. The MFA is then used for retrieving a session token.
   mfa_serial: arn:aws:iam::123456789012:mfa/yourusername
 
+# This is an example of an profile that can be assumed with `limes profile admin`
 admin:
+  # role_arn can be retrived from IAM
   role_arn: arn:aws:iam::123456789012:role/admin
+
+  # source_profile defines the profile to use when assuming this role
   source_profile: default
   region: eu-west-1
 
+# This is an example of an profile that can be assumed with `limes profile readonly`
 readonly:
   role_arn: arn:aws:iam::123456789012:role/readonly
   source_profile: default
