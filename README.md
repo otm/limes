@@ -3,6 +3,9 @@ Limes provides an easy work flow with MFA protected access keys, temporary crede
 
 Limes is a Local Instance MEtadata Service and emulates parts of the [AWS Instance Metadata Service](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html) running on Amazon Linux. The AWS SDK and AWS CLI can therefor utilize this service to authenticate.
 
+## Warning
+The AWS SDK refreshes credentials automatically when using limes. So **all** services will change profile if the profile is changed in limes.
+
 ##  Installation
 1. Download binary for your architecture from https://github.com/otm/limes/releases/latest
 2. Copy the file to `/usr/local/bin` or appropriate location in PATH
@@ -14,7 +17,7 @@ Limes is a Local Instance MEtadata Service and emulates parts of the [AWS Instan
 ## Configuring the Loop Back Device
 The configuration below adds the necessary IP configuration on the loop back device. Without this configuration the service can not start.
 
-**Note:** This configuration is not persistent.
+**Note:** This configuration is not persistent between reboots.
 
 #### Linux
 ```
@@ -31,7 +34,7 @@ sudo /sbin/ifconfig lo0 alias 169.254.169.254
 To be done
 
 ## Configuring IMS (Instance Meta-data Service)
-There is an [example configuration file](http://github.com/otm/limes/limes.conf.example). The configuration file is documented. Make a copy of the file and place it in `~/.limes/config`.
+There is an [example configuration file](https://github.com/otm/limes/blob/master/config.example). The configuration file is documented. Make a copy of the file and place it in `~/.limes/config`.
 
 ```
 mkdir -p ~/.limes
@@ -67,6 +70,7 @@ The service should be configured on the loop back device, and only accessible fr
 * Add support for providing MFA with client to enable to start as a service
 * Add support for temporary move/remove AWS configuration files
 * Add support for exporting environment variables
+* Windows support (If I get someone to test it)
 
 ## Build
 To build you need a Go compiler and environment setup. See https://golang.org/ for more information regarding setting up and configuring Go.
