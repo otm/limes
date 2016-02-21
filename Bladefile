@@ -1,0 +1,81 @@
+local sh = require('sh')
+
+--<version> [name] [description] - cross compile and create release on Github
+function target.release(version, name, description)
+	assert(version, "fatal: no version specified")
+
+	name = name or string.format("limes %s", version)
+	description = description or string.format("limes %s", version)
+
+	if not string.match(version, "^v%d[.]%d[.]%d$") then
+		error("fatal: version must be on the form 'vX.X.X'")
+	end
+
+	exitCode, output = blade._exec('git status --porcelain')
+	if output ~= "" then
+		error("fatal: uncommited changes")
+	end
+
+	target.build()
+	blade.sh('git tag ' .. version)
+	blade.sh('git push --tags')
+
+	blade.sh(string.format("github-release release --user otm --repo limes --tag %s --name '%s' --description '%s'", version, name, description))
+
+	for file in io.popen("ls -1 limes_*"):lines() do
+		code = blade.system(string.format("github-release upload --user otm --repo limes --tag %s --name %s --file %s", version, file, file))
+		blade.printStatus(file, code)
+	end
+end
+
+-- blade.flag(target.release, function(flag)
+-- 	flag:string("version", "version", "The version to release", function()
+-- 		return sh.git("tag"):stdout()
+-- 	end)
+-- 	flag:stringArg("name", 1, "The name of the release")
+-- 	flag:stringArg("description", 1, "The description of the release")
+-- end)
+
+-- blade.compgen(target.release, function(compWords, compCWord)
+-- 	if compCWord == 1 then
+-- 		code, out = blade._sh("git tag")
+-- 		return out
+-- 	end
+-- end)
+
+--clean working directory of builds
+function target.clean()
+	blade.exec("rm blade blade_*")
+end
+
+--cross compile
+function target.build()
+	sh.go("generate")
+	sh(gocmd("gox"), "-os", "linux darwin"):print()
+end
+
+--download, install and setup gox for cross compile
+function target.goxSetup()
+	blade.sh("go get github.com/mitchellh/gox")
+	blade.sh("go install github.com/mitchellh/gox")
+	go("gox -build-toolchain", {sudo=true})
+end
+
+function gocmd(cmd)
+	code, gopath = blade.system("go env GOPATH")
+	gopath = (gopath:gsub("^%s*(.-)%s*$", "%1"))
+	return gopath .. "/bin/" .. cmd
+end
+
+function go(cmd, options)
+	code, gopath = blade.system("go env GOPATH")
+	gopath = (gopath:gsub("^%s*(.-)%s*$", "%1"))
+	cmd = gopath .. "/bin/" .. cmd
+
+	print(cmd)
+	if options and options.sudo then
+		return sh.sudo(cmd):print()
+	end
+
+	return sh(cmd):print()
+end
