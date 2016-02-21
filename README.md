@@ -4,7 +4,12 @@ Limes provides an easy work flow with MFA protected access keys, temporary crede
 Limes is a Local Instance MEtadata Service and emulates parts of the [AWS Instance Metadata Service](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html) running on Amazon Linux. The AWS SDK and AWS CLI can therefor utilize this service to authenticate.
 
 ##  Installation
-To be done
+1. Download binary for your architecture from https://github.com/otm/limes/releases/latest
+2. Copy the file to `/usr/local/bin` or appropriate location in PATH
+3. Make it executable: `chmod +x /usr/local/bin/limes`
+4. **Linux:** Allow limes to bind to privileged ports `setcap 'cap_net_bind_service=+ep' /usr/local/bin/limes`
+
+**Note:** On Mac OS limes server is needed to run as root for the time being.
 
 ## Configuring the Loop Back Device
 The configuration below adds the necessary IP configuration on the loop back device. Without this configuration the service can not start.
@@ -35,6 +40,23 @@ wget -O ~/.limes/config https://raw.githubusercontent.com/otm/limes/master/confi
 
 Use your favorite text editor to update ~/.limes/config
 
+## Usage
+Running `limes` in your terminal prints usage information.
+
+#### Starting the Service
+The service is started with `limes start`.
+
+#### Assuming Profiles
+A profile is assumed with `limes profile <profile-name>`, where profile-name is
+a configured profile. Please note that this does not refer to AWS profiles but
+profiles configured in limes.
+
+#### Service Status
+By running `limes status` it is possible to see the current status, and also it can detect common problems and misconfigurations.
+
+## Known Problems
+If AWS environment variables, `.aws/credentials` or `.aws/config` are present there is a chance that the limes does not work. This can be checked with `limes status`
+
 ## Security
 The service should be configured on the loop back device, and only accessible from the host it is running on.
 
@@ -42,6 +64,9 @@ The service should be configured on the loop back device, and only accessible fr
 
 ## Roadmap
 * Add support for running commands
+* Add support for providing MFA with client to enable to start as a service
+* Add support for temporary move/remove AWS configuration files
+* Add support for exporting environment variables
 
 ## Build
 To build you need a Go compiler and environment setup. See https://golang.org/ for more information regarding setting up and configuring Go.
