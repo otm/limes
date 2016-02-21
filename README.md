@@ -37,8 +37,6 @@ mv limes.conf.example config
 
 Use your favorite text editor to update the configuration file
 
-
-
 ## Security
 The service should be configured on the loop back device, and only accessible from the host it is running on.
 

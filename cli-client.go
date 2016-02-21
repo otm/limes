@@ -58,7 +58,7 @@ func StartService(args *Start) {
 			log.Fatalf("Could not read from config file. The error was: %s\n", configErr.Error())
 		}
 
-		configParseErr := yaml.Unmarshal(configContents, config.profiles)
+		configParseErr := yaml.Unmarshal(configContents, &config.profiles)
 		if configParseErr != nil {
 			log.Fatalf("Error in parsing config file: %s\n", configParseErr.Error())
 		}
@@ -68,7 +68,7 @@ func StartService(args *Start) {
 
 	defer func() {
 		log.Debug("Removing UNIX socket.\n")
-		os.Remove("./ims.sock")
+		os.Remove(args.Adress)
 	}()
 
 	// Startup the HTTP server and respond to requests.
@@ -93,7 +93,7 @@ func StartService(args *Start) {
 	mds.Start()
 
 	stop := make(chan struct{})
-	agentServer := NewCliHandler("./ims.sock", credsManager, stop)
+	agentServer := NewCliHandler(args.Adress, credsManager, stop)
 	err = agentServer.Start()
 	if err != nil {
 		log.Fatalf("Could not start agentServer: %s\n", err.Error())
@@ -150,15 +150,23 @@ func (c *cliClient) status(args *Status) error {
 			Expiration:      "n/a",
 		}
 		status = "down"
-		defer fmt.Fprintf(os.Stderr, "communication error: %v\n", err)
+		defer fmt.Fprintf(os.Stderr, "\ncommunication error: %v\n", err)
 	}
 
 	if r.Error != "" {
 		status = "error"
-		defer fmt.Fprintf(os.Stderr, "error retrieving status: %v\n", r.Error)
+		defer fmt.Fprintf(os.Stderr, "\nerror retrieving status: %v\n", r.Error)
+	}
+
+	env := "ok"
+	errConf := checkActiveAWSConfig()
+	if errConf != nil {
+		env = "nok"
+		defer fmt.Fprintf(os.Stderr, "\nwarning: %v\n", errConf)
 	}
 
 	fmt.Printf("Server:          %v\n", status)
+	fmt.Printf("AWS Config:      %v\n", env)
 	fmt.Printf("Role:            %v\n", r.Role)
 
 	if args.Verbose == false {

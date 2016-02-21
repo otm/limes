@@ -67,7 +67,10 @@ func NewCredentialsExpirationManager(conf Config, mfa string) *CredentialsExpira
 		log.Fatalf("MFA needed")
 	}
 
-	params := &sts.GetSessionTokenInput{}
+	params := &sts.GetSessionTokenInput{
+		DurationSeconds: aws.Int64(10 * 3600),
+	}
+
 	if defaultProfile.MFASerial != "" {
 		params.SerialNumber = aws.String(defaultProfile.MFASerial)
 	}
@@ -142,6 +145,7 @@ func (m *CredentialsExpirationManager) RetrieveRoleARN(RoleARN, MFASerial, MFA s
 	}
 
 	ari := &sts.AssumeRoleInput{
+		DurationSeconds: aws.Int64(1800),
 		RoleArn:         &RoleARN,
 		RoleSessionName: &m.roleSessionName,
 	}

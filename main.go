@@ -2,14 +2,17 @@ package main
 
 import (
 	"errors"
+	"log"
 	"os"
+	"os/user"
+	"path/filepath"
 
 	"github.com/bobziuchkovski/writ"
 )
 
 const (
-	configFilePath   = "~/.ims/ims.conf"
-	domainSocketPath = "~/.ims/ims.sock"
+	configFilePath   = ".limes/config"
+	domainSocketPath = ".limes/socket"
 )
 
 //go:generate protoc -I proto/ proto/ims.proto --go_out=plugins=grpc:proto
@@ -27,30 +30,30 @@ type IMS struct {
 type Start struct {
 	HelpFlag   bool   `flag:"h, help" description:"START Display this message and exit"`
 	MFA        string `option:"m, mfa" description:"MFA token to start up server"`
-	ConfigFile string `option:"c, config" default:"./ims.conf" description:"configuration file"`
-	Adress     string `option:"adress" default:"./ims.sock" description:"configuration file"`
+	ConfigFile string `option:"c, config" default:"" description:"configuration file"`
+	Adress     string `option:"adress" default:"" description:"addess to local socket communication"`
 }
 
 // Stop defines the "stop" command cli flags and options
 type Stop struct {
 	HelpFlag   bool   `flag:"h, help" description:"STOP Display this message and exit"`
-	ConfigFile string `option:"c, config" default:"./ims.conf" description:"configuration file"`
-	Adress     string `option:"adress" default:"./ims.sock" description:"configuration file"`
+	ConfigFile string `option:"c, config" default:"" description:"configuration file"`
+	Adress     string `option:"adress" default:"" description:"configuration file"`
 }
 
 // Status defines the "status" command cli flags and options
 type Status struct {
 	HelpFlag   bool   `flag:"h, help" description:"STATUS Display this message and exit"`
-	ConfigFile string `option:"c, config" default:"./ims.conf" description:"configuration file"`
-	Adress     string `option:"adress" default:"./ims.sock" description:"configuration file"`
+	ConfigFile string `option:"c, config" default:"" description:"configuration file"`
+	Adress     string `option:"adress" default:"" description:"configuration file"`
 	Verbose    bool   `flag:"v, verbose" description:"enables verbose output"`
 }
 
 // SwitchProfile defines the "profile" command cli flags and options
 type SwitchProfile struct {
 	HelpFlag   bool   `flag:"h, help" description:"SwitchProfile Display this message and exit"`
-	ConfigFile string `option:"c, config" default:"./ims.conf" description:"configuration file"`
-	Adress     string `option:"adress" default:"./ims.sock" description:"configuration file"`
+	ConfigFile string `option:"c, config" default:"" description:"configuration file"`
+	Adress     string `option:"adress" default:"" description:"configuration file"`
 }
 
 // RunCmd defines the "run" command cli flags ands options
@@ -72,6 +75,8 @@ func (l *Start) Run(p writ.Path, positional []string) {
 		p.Last().ExitHelp(nil)
 	}
 
+	l.ConfigFile = setDefaultConfigPath(l.ConfigFile)
+	l.Adress = setDefaultSocketAdress(l.Adress)
 	StartService(l)
 }
 
@@ -81,6 +86,8 @@ func (l *Stop) Run(p writ.Path, positional []string) {
 		p.Last().ExitHelp(nil)
 	}
 
+	l.ConfigFile = setDefaultConfigPath(l.ConfigFile)
+	l.Adress = setDefaultSocketAdress(l.Adress)
 	rpc := newCliClient(l.Adress)
 	defer rpc.close()
 	rpc.stop(l)
@@ -92,6 +99,8 @@ func (l *Status) Run(p writ.Path, positional []string) {
 		p.Last().ExitHelp(nil)
 	}
 
+	l.ConfigFile = setDefaultConfigPath(l.ConfigFile)
+	l.Adress = setDefaultSocketAdress(l.Adress)
 	rpc := newCliClient(l.Adress)
 	defer rpc.close()
 	rpc.status(l)
@@ -107,6 +116,8 @@ func (l *SwitchProfile) Run(p writ.Path, positional []string) {
 		p.Last().ExitHelp(errors.New("profile name is required"))
 	}
 
+	l.ConfigFile = setDefaultConfigPath(l.ConfigFile)
+	l.Adress = setDefaultSocketAdress(l.Adress)
 	rpc := newCliClient(l.Adress)
 	defer rpc.close()
 	rpc.assumeRole(positional[0], l)
@@ -120,6 +131,32 @@ func (l *SwitchProfile) Run(p writ.Path, positional []string) {
 //
 // 	fmt.Printf("Run is not implemented")
 // }
+
+func setDefaultSocketAdress(adress string) string {
+	if adress != "" {
+		return adress
+	}
+
+	usr, err := user.Current()
+	if err != nil {
+		log.Fatalf("unable to extract user information: %v", err)
+	}
+
+	return filepath.Join(usr.HomeDir, domainSocketPath)
+}
+
+func setDefaultConfigPath(path string) string {
+	if path != "" {
+		return path
+	}
+
+	usr, err := user.Current()
+	if err != nil {
+		log.Fatalf("unable to extract user information: %v", err)
+	}
+
+	return filepath.Join(usr.HomeDir, configFilePath)
+}
 
 func main() {
 	ims := &IMS{}
@@ -149,7 +186,7 @@ func main() {
 	// case "ims run":
 	// 	ims.RunCmd.Run(path, positional)
 	default:
-		panic("BUG: Someone added a new command and forgot to add it's path here")
+		log.Fatalf("bug: sub command has not been setup: %v", path.String())
 	}
 
 }
