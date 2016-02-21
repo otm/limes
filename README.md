@@ -29,13 +29,11 @@ To be done
 There is an [example configuration file](http://github.com/otm/limes/limes.conf.example). The configuration file is documented. Make a copy of the file and place it in `~/.limes/config`.
 
 ```
-mkdir ~/.limes
-cd ~/.limes
-wget https://raw.githubusercontent.com/otm/ims/master/limes.conf.example
-mv limes.conf.example config
+mkdir -p ~/.limes
+wget -O ~/.limes/config https://raw.githubusercontent.com/otm/limes/master/config.example
 ```
 
-Use your favorite text editor to update the configuration file
+Use your favorite text editor to update ~/.limes/config
 
 ## Security
 The service should be configured on the loop back device, and only accessible from the host it is running on.
