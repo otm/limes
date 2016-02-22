@@ -51,7 +51,7 @@ end
 --cross compile
 function target.build()
 	sh.go("generate")
-	sh(gocmd("gox"), "-os", "linux darwin"):print()
+	sh.gox("-os", "linux darwin"):print()
 end
 
 --download, install and setup gox for cross compile
