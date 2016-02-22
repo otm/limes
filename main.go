@@ -4,7 +4,6 @@ import (
 	"errors"
 	"log"
 	"os"
-	"os/user"
 	"path/filepath"
 
 	"github.com/bobziuchkovski/writ"
@@ -137,12 +136,12 @@ func setDefaultSocketAdress(adress string) string {
 		return adress
 	}
 
-	usr, err := user.Current()
+	home, err := homeDir()
 	if err != nil {
 		log.Fatalf("unable to extract user information: %v", err)
 	}
 
-	return filepath.Join(usr.HomeDir, domainSocketPath)
+	return filepath.Join(home, domainSocketPath)
 }
 
 func setDefaultConfigPath(path string) string {
@@ -150,12 +149,12 @@ func setDefaultConfigPath(path string) string {
 		return path
 	}
 
-	usr, err := user.Current()
+	home, err := homeDir()
 	if err != nil {
 		log.Fatalf("unable to extract user information: %v", err)
 	}
 
-	return filepath.Join(usr.HomeDir, configFilePath)
+	return filepath.Join(home, configFilePath)
 }
 
 func main() {

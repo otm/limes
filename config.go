@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"runtime"
 )
 
 // Config hold configuration read from the configuration file
@@ -77,12 +78,12 @@ func doCheck(fn func() (bool, error), err error) (bool, error) {
 }
 
 func activeAWSConfigFile() (active bool, err error) {
-	usr, err := user.Current()
+	home, err := homeDir()
 	if err != nil {
 		return false, fmt.Errorf("unable to fetch user information: %v", err)
 	}
 
-	if _, err := os.Stat(filepath.Join(usr.HomeDir, awsConfDir, awsConfigFile)); os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(home, awsConfDir, awsConfigFile)); os.IsNotExist(err) {
 		return false, nil
 	}
 
@@ -90,12 +91,12 @@ func activeAWSConfigFile() (active bool, err error) {
 }
 
 func activeAWSCredentialsFile() (active bool, err error) {
-	usr, err := user.Current()
+	home, err := homeDir()
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("unable to fetch user information: %v", err)
 	}
 
-	if _, err := os.Stat(filepath.Join(usr.HomeDir, awsConfDir, awsCredentialsFile)); os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(home, awsConfDir, awsCredentialsFile)); os.IsNotExist(err) {
 		return false, nil
 	}
 
@@ -113,4 +114,34 @@ func activeAWSEnvironment() (active bool, err error) {
 
 	return false, nil
 
+}
+
+func homeDir() (homeDir string, err error) {
+	usr, err := user.Current()
+	if err == nil {
+		return usr.HomeDir, nil
+	}
+
+	// fallback to environemt variables
+	var home string
+	if runtime.GOOS == "windows" {
+		home = os.Getenv("HOMEDRIVE") + os.Getenv("HOMEPATH")
+		if home != "" {
+			return home, nil
+		}
+
+		home = os.Getenv("USERPROFILE")
+		if home != "" {
+			return home, nil
+		}
+
+		return "", fmt.Errorf("fallback failed, set `USERPROFILE` environment variable")
+	}
+
+	home = os.Getenv("HOME")
+	if home != "" {
+		return home, nil
+	}
+
+	return "", fmt.Errorf("fallback failed, set `HOME` environment variable")
 }
