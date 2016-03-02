@@ -5,11 +5,10 @@ from golang
 RUN apt-get update && apt-get install net-tools
 RUN wget https://repo1.maven.org/maven2/com/google/protobuf/protoc/3.0.0-beta-2/protoc-3.0.0-beta-2-linux-x86_64.exe -O /usr/local/bin/protoc && chmod +x /usr/local/bin/protoc
 RUN go get -u github.com/golang/protobuf/proto github.com/golang/protobuf/protoc-gen-go 
+RUN mkdir /root/.limes
 ADD . /go/src/github.com/otm/limes
 WORKDIR /go/src/github.com/otm/limes
 RUN go clean
 RUN go generate
 RUN go get
 RUN go build
-
-CMD ["./ims", "status"]

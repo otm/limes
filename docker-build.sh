@@ -1,3 +1,3 @@
 #!/bin/bash -eu
-docker build -t "ims" .
+docker build -t "limes" .
 

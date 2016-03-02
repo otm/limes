@@ -1,3 +1,3 @@
 #!/bin/bash -eu
-docker exec -it ims-daemon /bin/bash
+docker exec -it limes-daemon bash
 

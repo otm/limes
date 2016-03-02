@@ -1,3 +1,5 @@
 #!/bin/bash -eu
-docker exec -it ims-daemon ./ims $*
+# Launches limes inside the docker container. Use this command to communicate with the daemon.
+# Example usage: ./docker-run.sh profile dev
+docker exec -it limes-daemon ./limes $*
 
