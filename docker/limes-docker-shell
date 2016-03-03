@@ -1,4 +1,3 @@
 #!/bin/bash -eu
-cd $(dirname $BASH_SOURCE)/..
 docker exec -it limes-daemon bash
 

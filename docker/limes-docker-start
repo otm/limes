@@ -1,5 +1,5 @@
 #!/bin/bash -eu
-# Launches the limes daemon inside a docker container. Mounts ~/.limes as a conf dir, so put your limes.conf at ~/.limes/config.
+# Launches the limes daemon inside a docker container. Mounts ~/.limes as a conf dir, so put your conf at ~/.limes/config.
 # Example Usage: limes-docker-start --mfa=123456
 docker rm limes-daemon || true
 docker run --net="host" --cap-add=NET_ADMIN -it --name "limes-daemon" -v $HOME/.limes:/root/.limes limes /bin/bash -c "ifconfig lo:0 169.254.169.254 netmask 255.255.255.255 && ./limes start $*"
