@@ -14,6 +14,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	pb "github.com/otm/ims/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
@@ -93,7 +94,7 @@ func StartService(args *Start) {
 	mds.Start()
 
 	stop := make(chan struct{})
-	agentServer := NewCliHandler(args.Adress, credsManager, stop)
+	agentServer := NewCliHandler(args.Adress, credsManager, stop, config)
 	err = agentServer.Start()
 	if err != nil {
 		log.Fatalf("Could not start agentServer: %s\n", err.Error())
@@ -195,6 +196,27 @@ func (c *cliClient) assumeRole(role string, args *SwitchProfile) error {
 
 	fmt.Printf("Assumed: %v\n", role)
 	return nil
+}
+
+func (c *cliClient) retreiveRole(role string) (*credentials.Credentials, error) {
+	r, err := c.srv.RetrieveRole(context.Background(), &pb.AssumeRoleRequest{Name: role})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "communication error: %v\n", err)
+		return nil, err
+	}
+
+	if r.Error != "" {
+		fmt.Fprintf(os.Stderr, "error stopping server: %v\n", r.Error)
+		return nil, err
+	}
+
+	creds := credentials.NewStaticCredentials(
+		r.AccessKeyId,
+		r.SecretAccessKey,
+		r.SessionToken,
+	)
+
+	return creds, nil
 }
 
 func checkMFA(config Config) string {

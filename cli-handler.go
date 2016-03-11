@@ -7,7 +7,7 @@ import (
 
 	"google.golang.org/grpc"
 
-	pb "github.com/otm/ims/proto"
+	pb "github.com/otm/limes/proto"
 	"golang.org/x/net/context"
 )
 
@@ -16,13 +16,20 @@ type CliHandler struct {
 	address      string
 	stop         chan struct{}
 	log          Logger
+	config       Config
 	credsManager *CredentialsExpirationManager
 }
 
 // NewCliHandler returns a cliHandler
-func NewCliHandler(address string, credsManager *CredentialsExpirationManager, stop chan struct{}) *CliHandler {
+func NewCliHandler(address string, credsManager *CredentialsExpirationManager, stop chan struct{}, config Config) *CliHandler {
 	fmt.Println("new cli handler")
-	return &CliHandler{address: address, log: &ConsoleLogger{}, stop: stop, credsManager: credsManager}
+	return &CliHandler{
+		address:      address,
+		log:          &ConsoleLogger{},
+		stop:         stop,
+		credsManager: credsManager,
+		config:       config,
+	}
 }
 
 // Start handles the cli start command
@@ -104,4 +111,18 @@ func (h *CliHandler) RetrieveRole(ctx context.Context, in *pb.AssumeRoleRequest)
 		SessionToken:    *creds.SessionToken,
 		Expiration:      creds.Expiration.String(),
 	}, nil
+}
+
+// Config returns the current configuration
+func (h *CliHandler) Config(ctx context.Context, in *pb.Void) (*pb.ConfigReply, error) {
+	res := &pb.ConfigReply{
+		Profiles: make(map[string]*pb.Profile, len(h.config.profiles)),
+	}
+	for name, profile := range h.config.profiles {
+		res.Profiles[name] = &pb.Profile{
+			AwsAccessKeyID: profile.AwsAccessKeyID,
+		}
+	}
+	//	h.config.profiles
+	return nil, nil
 }

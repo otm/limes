@@ -11,6 +11,7 @@ service InstanceMetaService {
   rpc Stop(Void) returns (StopReply) {}
   rpc AssumeRole(AssumeRoleRequest) returns (StatusReply) {}
   rpc RetrieveRole(AssumeRoleRequest) returns (StatusReply) {}
+  rpc Config(Void) returns (ConfigReply) {}
 }
 
 message Void {}
@@ -32,4 +33,19 @@ message StopReply {
 message AssumeRoleRequest {
   string Name = 1;
   string Mfa = 2;
+}
+
+message Profile {
+  string AwsAccessKeyID = 1;
+	string AwsSecretAccessKey = 2;
+	string AwsSessionToken = 3;
+	string Region = 4;
+	string MFASerial = 5;
+	string RoleARN = 6;
+  string SourceProfile = 7;
+	string RoleSessionName = 8;
+}
+
+message ConfigReply {
+  map<string, Profile> profiles = 1;
 }
