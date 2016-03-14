@@ -2,12 +2,19 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/bobziuchkovski/writ"
+)
+
+var (
+	out    = os.Stdout
+	errout = os.Stderr
 )
 
 const (
@@ -17,117 +24,202 @@ const (
 
 //go:generate protoc -I proto/ proto/ims.proto --go_out=plugins=grpc:proto
 
-// limes --profile foo start
-// limes --profile foo restart
-// limes stop
-
-// limes fix
-// limes fix --restore
-
 // limes up => start web server
-// limes donw => stop web server
+// limes down => stop web server
 
-// limes --profile foo env
-
-// limes env --clear
-// limes env
-
-// limes --profile run
-
-// limes status
-// limes status -v
-
-// IMS defines the cli commands
-type IMS struct {
+// Limes defines the cli commands
+type Limes struct {
 	Start         Start         `command:"start" description:"Start the Instance Metadata Service"`
 	Stop          Stop          `command:"stop" description:"Stop the Instance Metadata Service"`
 	Status        Status        `command:"status" description:"Get current status of the service"`
 	SwitchProfile SwitchProfile `command:"assume" alias:"profile" description:"Assume IAM role"`
 	RunCmd        RunCmd        `command:"run" description:"Run a command with the specified profile"`
-	Profile       string        `option:"profile" default:"" description:"profile to assume"`
+	ShowCmd       ShowCmd       `command:"show" description:"List/show information"`
+	Env           Env           `command:"env" description:"Set/clear environment variables"`
+	Fix           Fix           `command:"fix" description:"Fix configuration"`
+	Credentials   Credentials   `command:"credentials" description:"Set/Update credentials"`
+	Profile       string        `option:"profile" default:"" description:"Profile to assume"`
+	ConfigFile    string        `option:"c, config" default:"" description:"Configuration file"`
+	Adress        string        `option:"adress" default:"" description:"Address to connect to"`
+}
+
+// Credentials defines the start subcommand cli flags and options
+type Credentials struct {
+	HelpFlag bool   `flag:"h, help" description:"Display this message and exit"`
+	MFA      string `option:"m, mfa" description:"MFA token to start up server"`
+}
+
+func (l *Credentials) run(cmd *Limes, p writ.Path, positional []string) {
+	if l.HelpFlag {
+		p.Last().ExitHelp(nil)
+	}
+
+	rpc := newCliClient(cmd.Adress)
+	defer rpc.close()
+	rpc.setSourceProfile(cmd.Profile, l.MFA)
+
 }
 
 // Start defines the "start" command cli flags and options
 type Start struct {
-	HelpFlag   bool   `flag:"h, help" description:"START Display this message and exit"`
-	MFA        string `option:"m, mfa" description:"MFA token to start up server"`
-	ConfigFile string `option:"c, config" default:"" description:"configuration file"`
-	Adress     string `option:"adress" default:"" description:"addess to local socket communication"`
+	HelpFlag bool   `flag:"h, help" description:"Display this message and exit"`
+	Fake     bool   `flag:"fake" description:"Do not connect to AWS"`
+	MFA      string `option:"m, mfa" description:"MFA token to start up server"`
 }
 
 // Stop defines the "stop" command cli flags and options
 type Stop struct {
-	HelpFlag   bool   `flag:"h, help" description:"STOP Display this message and exit"`
-	ConfigFile string `option:"c, config" default:"" description:"configuration file"`
-	Adress     string `option:"adress" default:"" description:"configuration file"`
+	HelpFlag bool `flag:"h, help" description:"Display this message and exit"`
 }
 
 // Status defines the "status" command cli flags and options
 type Status struct {
-	HelpFlag   bool   `flag:"h, help" description:"STATUS Display this message and exit"`
-	ConfigFile string `option:"c, config" default:"" description:"configuration file"`
-	Adress     string `option:"adress" default:"" description:"configuration file"`
-	Verbose    bool   `flag:"v, verbose" description:"enables verbose output"`
+	HelpFlag bool `flag:"h, help" description:"Display this message and exit"`
+	Verbose  bool `flag:"v, verbose" description:"enables verbose output"`
+}
+
+// Fix defines the "fix" subcommand cli flags and options
+type Fix struct {
+	HelpFlag bool `flag:"h, help" description:"Display this message and exit"`
+	Restore  bool `flag:"restore" description:"Restores AWS configuration files"`
 }
 
 // SwitchProfile defines the "profile" command cli flags and options
 type SwitchProfile struct {
-	HelpFlag   bool   `flag:"h, help" description:"SwitchProfile Display this message and exit"`
-	ConfigFile string `option:"c, config" default:"" description:"configuration file"`
-	Adress     string `option:"adress" default:"" description:"configuration file"`
+	HelpFlag bool `flag:"h, help" description:"Display this message and exit"`
 }
 
 // RunCmd defines the "run" command cli flags ands options
 type RunCmd struct {
-	HelpFlag bool   `flag:"h, help" description:"RunCmd Display this message and exit"`
-	Profile  string `option:"profile" default:"" description:"profile to assume"`
-	Adress   string `option:"adress" default:"" description:"configuration file"`
+	HelpFlag bool   `flag:"h, help" description:"Display this message and exit"`
+	Profile  string `option:"profile" default:"" description:"Profile to assume"`
+}
+
+// ShowCmd defines the "show" command cli flags ands options
+type ShowCmd struct {
+	HelpFlag bool `flag:"h, help" description:"Display this message and exit"`
+}
+
+// Env defines the "env" subcommand cli flags and options
+type Env struct {
+	HelpFlag bool `flag:"h, help" description:"Display this message and exit"`
+	Clear    bool `flag:"clear" description:"Clear environment variables"`
 }
 
 // Run is the main cli handler
-func (g *IMS) Run(p writ.Path, positional []string) {
+func (g *Limes) Run(cmd *Limes, p writ.Path, positional []string) {
 	p.Last().ExitHelp(errors.New("COMMAND is required"))
 }
 
 // Run is the handler for the start command
-func (l *Start) Run(p writ.Path, positional []string) {
+func (l *Start) Run(cmd *Limes, p writ.Path, positional []string) {
 	if l.HelpFlag {
 		p.Last().ExitHelp(nil)
 	}
 
-	l.ConfigFile = setDefaultConfigPath(l.ConfigFile)
-	l.Adress = setDefaultSocketAdress(l.Adress)
-	StartService(l)
+	if cmd.Profile == "" {
+		cmd.Profile = "default"
+	}
+	StartService(cmd.ConfigFile, cmd.Adress, cmd.Profile, l.MFA, l.Fake)
 }
 
 // Run is the handler for the stop command
-func (l *Stop) Run(p writ.Path, positional []string) {
+func (l *Stop) Run(cmd *Limes, p writ.Path, positional []string) {
 	if l.HelpFlag {
 		p.Last().ExitHelp(nil)
 	}
 
-	l.ConfigFile = setDefaultConfigPath(l.ConfigFile)
-	l.Adress = setDefaultSocketAdress(l.Adress)
-	rpc := newCliClient(l.Adress)
+	rpc := newCliClient(cmd.Adress)
 	defer rpc.close()
 	rpc.stop(l)
 }
 
 // Run is the handler for the status command
-func (l *Status) Run(p writ.Path, positional []string) {
+func (l *Status) Run(cmd *Limes, p writ.Path, positional []string) {
 	if l.HelpFlag {
 		p.Last().ExitHelp(nil)
 	}
 
-	l.ConfigFile = setDefaultConfigPath(l.ConfigFile)
-	l.Adress = setDefaultSocketAdress(l.Adress)
-	rpc := newCliClient(l.Adress)
+	rpc := newCliClient(cmd.Adress)
 	defer rpc.close()
 	rpc.status(l)
 }
 
+// Run is the handler for the fix command
+func (l *Fix) Run(cmd *Limes, p writ.Path, positional []string) {
+	if l.HelpFlag {
+		p.Last().ExitHelp(nil)
+	}
+
+	home, err := homeDir()
+	if err != nil {
+		fmt.Fprintf(errout, "unable to fetch user information: %v\n", err)
+		os.Exit(1)
+	}
+
+	exitOnErr := func(err error) {
+		if err != nil {
+			fmt.Fprintf(errout, "error: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
+	exists := func(path string) bool {
+		_, err := os.Stat(path)
+		if err != nil {
+			return false
+		}
+		return true
+	}
+
+	if l.Restore == true {
+		originalPath := filepath.Join(home, awsConfDir, awsCredentialsFile)
+		movedPath := filepath.Join(home, awsConfDir, awsRenamePrefix+awsCredentialsFile)
+		fmt.Printf("loooking for: %v\n", movedPath)
+		if exists(movedPath) {
+			fmt.Fprintf(out, "# restoring: %v\n", originalPath)
+			exitOnErr(os.Rename(movedPath, originalPath))
+		}
+
+		originalPath = filepath.Join(home, awsConfDir, awsConfigFile)
+		movedPath = filepath.Join(home, awsConfDir, awsRenamePrefix+awsConfigFile)
+		if exists(movedPath) {
+			fmt.Fprintf(out, "# restoring: %v\n", originalPath)
+			exitOnErr(os.Rename(movedPath, originalPath))
+		}
+		return
+	}
+
+	if err = checkActiveAWSConfig(); err == nil {
+		fmt.Fprintf(out, "# configuration ok, nothing to fix\n")
+		os.Exit(0)
+	}
+
+	for err := checkActiveAWSConfig(); err != nil; err = checkActiveAWSConfig() {
+		switch err {
+		case errActiveAWSCredentialsFile:
+			originalPath := filepath.Join(home, awsConfDir, awsCredentialsFile)
+			movedPath := filepath.Join(home, awsConfDir, awsRenamePrefix+awsCredentialsFile)
+			fmt.Fprintf(out, "# moving: %v => %v\n", originalPath, movedPath)
+			exitOnErr(os.Rename(originalPath, movedPath))
+		case errKeyPairInAWSConfigFile:
+			originalPath := filepath.Join(home, awsConfDir, awsConfigFile)
+			movedPath := filepath.Join(home, awsConfDir, awsRenamePrefix+awsConfigFile)
+			fmt.Fprintf(out, "# moving: %v => %v\n", originalPath, movedPath)
+			exitOnErr(os.Rename(originalPath, movedPath))
+		case errActiveAWSEnvironment:
+			fmt.Fprintf(out, "# You have active AWS Environment variables\n")
+			fmt.Fprintf(out, "# Either run the code bellow in your shell or excute it with\n")
+			fmt.Fprintf(out, "# eval \"$(limes fix)\"\n")
+			fmt.Fprintf(out, "unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN")
+		default:
+			fmt.Fprintf(out, "unable to fix: %v\n", err)
+		}
+	}
+}
+
 // Run is the handler for the profile command
-func (l *SwitchProfile) Run(p writ.Path, positional []string) {
+func (l *SwitchProfile) Run(cmd *Limes, p writ.Path, positional []string) {
 	if l.HelpFlag {
 		p.Last().ExitHelp(nil)
 	}
@@ -136,43 +228,103 @@ func (l *SwitchProfile) Run(p writ.Path, positional []string) {
 		p.Last().ExitHelp(errors.New("profile name is required"))
 	}
 
-	l.ConfigFile = setDefaultConfigPath(l.ConfigFile)
-	l.Adress = setDefaultSocketAdress(l.Adress)
-	rpc := newCliClient(l.Adress)
+	rpc := newCliClient(cmd.Adress)
 	defer rpc.close()
-	rpc.assumeRole(positional[0], l)
+	rpc.assumeRole(positional[0], "")
 }
 
 // Run is the handler for the run command
-func (l *RunCmd) Run(profile string, p writ.Path, positional []string) {
+func (l *RunCmd) Run(cmd *Limes, p writ.Path, positional []string) {
 	if l.HelpFlag {
 		p.Last().ExitHelp(nil)
 	}
 
-	cmd := exec.Command(positional[0], positional[1:]...)
+	command := exec.Command(positional[0], positional[1:]...)
 
-	if profile != "" {
-		rpc := newCliClient(l.Adress)
+	if cmd.Profile != "" {
+		rpc := newCliClient(cmd.Adress)
 		defer rpc.close()
-		creds, err := rpc.retreiveRole(profile)
+		creds, err := rpc.retreiveRole(cmd.Profile)
 		if err != nil {
 			os.Exit(1)
 		}
 		cred, _ := creds.Get()
-		cmd.Env = append(os.Environ(),
+		command.Env = append(os.Environ(),
 			"AWS_ACCESS_KEY_ID="+cred.AccessKeyID,
 			"AWS_SECRET_ACCESS_KEY="+cred.SecretAccessKey,
 			"AWS_SESSION_TOKEN="+cred.SessionToken,
 		)
 	}
 
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err := cmd.Run()
+	command.Stdin = os.Stdin
+	command.Stdout = os.Stdout
+	command.Stderr = os.Stderr
+	err := command.Run()
 	if err != nil {
 		// TODO: Handle exit error
 	}
+}
+
+// Run is the handler for the show subcommand
+func (l *ShowCmd) Run(cmd *Limes, p writ.Path, positional []string) {
+	if l.HelpFlag {
+		p.Last().ExitHelp(nil)
+	}
+
+	if len(positional) > 1 {
+		p.Last().ExitHelp(nil)
+	}
+
+	options := []string{"roles"}
+	if len(positional) == 0 {
+		p.Last().ExitHelp(fmt.Errorf("valid components: %v\n", strings.Join(options, ", ")))
+	}
+
+	switch positional[0] {
+	case "roles":
+		rpc := newCliClient(cmd.Adress)
+		defer rpc.close()
+		roles, err := rpc.listRoles()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("%v\n", strings.Join(roles, "\n"))
+	default:
+		p.Last().ExitHelp(nil)
+	}
+}
+
+// Run is the handler for the env subcommand
+func (l *Env) Run(cmd *Limes, p writ.Path, positional []string) {
+	if l.HelpFlag {
+		p.Last().ExitHelp(nil)
+	}
+
+	profile := "default"
+	profileFlag := ""
+	if cmd.Profile != "" {
+		profile = cmd.Profile
+		profileFlag = fmt.Sprintf("--profile %v ", profile)
+	}
+
+	rpc := newCliClient(cmd.Adress)
+	defer rpc.close()
+	creds, err := rpc.retreiveRole(profile)
+	if err != nil {
+		fmt.Fprintf(errout, "error retreiving role: %v\n", err)
+		os.Exit(1)
+	}
+	credentials, err := creds.Get()
+	if err != nil {
+		fmt.Fprintf(errout, "error unpacking role: %v", err)
+		os.Exit(1)
+	}
+	fmt.Fprintf(out, "export AWS_ACCESS_KEY_ID=%v\n", credentials.AccessKeyID)
+	fmt.Fprintf(out, "export AWS_SECRET_ACCESS_KEY=%v\n", credentials.SecretAccessKey)
+	fmt.Fprintf(out, "export AWS_SESSION_TOKEN=%v\n", credentials.SessionToken)
+	fmt.Fprintf(out, "# Run this command to configure your shell:\n")
+	fmt.Fprintf(out, "# eval \"$(limes %senv)\"\n", profileFlag)
 }
 
 func setDefaultSocketAdress(adress string) string {
@@ -213,18 +365,22 @@ func injectCmdBreak(needle string, args []string) []string {
 }
 
 func main() {
-	ims := &IMS{}
-	cmd := writ.New("ims", ims)
-	cmd.Help.Usage = "Usage: ims COMMAND [OPTION]... [ARG]..."
-	cmd.Subcommand("start").Help.Usage = "Usage: ims start [--mfa <token>]"
-	cmd.Subcommand("stop").Help.Usage = "Usage: ims stop"
-	cmd.Subcommand("status").Help.Usage = "Usage: ims status"
-	cmd.Subcommand("profile").Help.Usage = "Usage: ims profile [name]"
-	cmd.Subcommand("run").Help.Usage = "Usage: ims run [--profile <name>] <cmd> [arg...]"
+	limes := &Limes{}
+	cmd := writ.New("limes", limes)
+	cmd.Help.Usage = "Usage: limes COMMAND [OPTION]... [ARG]..."
+	cmd.Subcommand("start").Help.Usage = "Usage: limes [--profile <name>] start [--mfa <token>]"
+	cmd.Subcommand("stop").Help.Usage = "Usage: limes stop"
+	cmd.Subcommand("status").Help.Usage = "Usage: limes status"
+	cmd.Subcommand("fix").Help.Usage = "Usage: limes fix [--restore]"
+	cmd.Subcommand("assume").Help.Usage = "Usage: limes assume --base-session <name>"
+	cmd.Subcommand("show").Help.Usage = "Usage: limes show [component]"
+	cmd.Subcommand("env").Help.Usage = "Usage: limes [--profile <name>] env"
+	cmd.Subcommand("credentials").Help.Usage = "Usage limes [--profile <name>] credentials [--mfa <token>]"
+	cmd.Subcommand("run").Help.Usage = "Usage: limes [--profile <name>] run <cmd> [arg...]"
 
 	path, positional, err := cmd.Decode(os.Args[1:])
 	if err != nil {
-		if path.String() != "ims run" {
+		if path.String() != "limes run" {
 			path.Last().ExitHelp(err)
 		}
 		os.Args = injectCmdBreak("run", os.Args)
@@ -234,21 +390,31 @@ func main() {
 		}
 	}
 
+	limes.Adress = setDefaultSocketAdress(limes.Adress)
+	limes.ConfigFile = setDefaultConfigPath(limes.ConfigFile)
+
 	switch path.String() {
-	case "ims":
-		ims.Run(path, positional)
-	case "ims start":
-		ims.Start.Run(path, positional)
-	case "ims stop":
-		ims.Stop.Run(path, positional)
-	case "ims status":
-		ims.Status.Run(path, positional)
-	case "ims profile":
-		ims.SwitchProfile.Run(path, positional)
-	case "ims run":
-		ims.RunCmd.Run(ims.Profile, path, positional)
+	case "limes":
+		limes.Run(limes, path, positional)
+	case "limes start":
+		limes.Start.Run(limes, path, positional)
+	case "limes stop":
+		limes.Stop.Run(limes, path, positional)
+	case "limes status":
+		limes.Status.Run(limes, path, positional)
+	case "limes fix":
+		limes.Fix.Run(limes, path, positional)
+	case "limes assume":
+		limes.SwitchProfile.Run(limes, path, positional)
+	case "limes show":
+		limes.ShowCmd.Run(limes, path, positional)
+	case "limes env":
+		limes.Env.Run(limes, path, positional)
+	case "limes credentials":
+		limes.Credentials.run(limes, path, positional)
+	case "limes run":
+		limes.RunCmd.Run(limes, path, positional)
 	default:
 		log.Fatalf("bug: sub command has not been setup: %v", path.String())
 	}
-
 }

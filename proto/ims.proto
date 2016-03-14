@@ -12,6 +12,7 @@ service InstanceMetaService {
   rpc AssumeRole(AssumeRoleRequest) returns (StatusReply) {}
   rpc RetrieveRole(AssumeRoleRequest) returns (StatusReply) {}
   rpc Config(Void) returns (ConfigReply) {}
+  rpc SetCredentials(AssumeRoleRequest) returns (StatusReply) {}
 }
 
 message Void {}
@@ -24,7 +25,7 @@ message StatusReply {
   string SecretAccessKey = 4;
   string SessionToken = 5;
   string Expiration = 6;
-  }
+}
 
 message StopReply {
   string Error = 1;

@@ -15,8 +15,9 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/aws/aws-sdk-go/aws/credentials"
-	pb "github.com/otm/ims/proto"
+	pb "github.com/otm/limes/proto"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
 )
 
@@ -46,15 +47,15 @@ func newCliClient(address string) *cliClient {
 }
 
 // StartService bootstraps the metadata service
-func StartService(args *Start) {
+func StartService(configFile, adress, profileName, MFA string, fake bool) {
 	log := &ConsoleLogger{}
 	config := Config{}
 
 	// TODO: Move to function and use a default configuration file
-	if args.ConfigFile != "" {
+	if configFile != "" {
 		// Parse in options from the given config file.
-		log.Debug("Loading configuration from %s\n", args.ConfigFile)
-		configContents, configErr := ioutil.ReadFile(args.ConfigFile)
+		log.Debug("Loading configuration from %s\n", configFile)
+		configContents, configErr := ioutil.ReadFile(configFile)
 		if configErr != nil {
 			log.Fatalf("Could not read from config file. The error was: %s\n", configErr.Error())
 		}
@@ -69,7 +70,7 @@ func StartService(args *Start) {
 
 	defer func() {
 		log.Debug("Removing UNIX socket.\n")
-		os.Remove(args.Adress)
+		os.Remove(adress)
 	}()
 
 	// Startup the HTTP server and respond to requests.
@@ -81,11 +82,16 @@ func StartService(args *Start) {
 		log.Fatalf("Could not startup the metadata interface: %s\n", err)
 	}
 
-	if args.MFA == "" {
-		args.MFA = checkMFA(config)
+	if MFA == "" {
+		MFA = checkMFA(config)
 	}
 
-	credsManager := NewCredentialsExpirationManager(config, args.MFA)
+	var credsManager CredentialsManager
+	if fake {
+		credsManager = &FakeCredentialsManager{}
+	} else {
+		credsManager = NewCredentialsExpirationManager(profileName, config, MFA)
+	}
 
 	mds, metadataError := NewMetadataService(listener, credsManager)
 	if metadataError != nil {
@@ -94,7 +100,7 @@ func StartService(args *Start) {
 	mds.Start()
 
 	stop := make(chan struct{})
-	agentServer := NewCliHandler(args.Adress, credsManager, stop, config)
+	agentServer := NewCliHandler(adress, credsManager, stop, config)
 	err = agentServer.Start()
 	if err != nil {
 		log.Fatalf("Could not start agentServer: %s\n", err.Error())
@@ -139,8 +145,9 @@ func (c *cliClient) stop(args *Stop) error {
 }
 
 func (c *cliClient) status(args *Status) error {
-	status := "up"
+	status := true
 
+	service := "up"
 	r, err := c.srv.Status(context.Background(), &pb.Void{})
 	if err != nil {
 		r = &pb.StatusReply{
@@ -150,41 +157,68 @@ func (c *cliClient) status(args *Status) error {
 			SessionToken:    "n/a",
 			Expiration:      "n/a",
 		}
-		status = "down"
-		defer fmt.Fprintf(os.Stderr, "\ncommunication error: %v\n", err)
+		service = "down"
+		status = false
+
+		showCorrectionAndExit(err)
+		defer fmt.Fprintf(errout, "\nerror communicating with daemon: %v\n", err)
 	}
 
 	if r.Error != "" {
-		status = "error"
-		defer fmt.Fprintf(os.Stderr, "\nerror retrieving status: %v\n", r.Error)
+		service = "error"
+		status = false
+		defer fmt.Fprintf(errout, "\nerror communication with daemon: %v\n", r.Error)
 	}
 
 	env := "ok"
 	errConf := checkActiveAWSConfig()
 	if errConf != nil {
 		env = "nok"
-		defer fmt.Fprintf(os.Stderr, "\nwarning: %v\n", errConf)
+		status = false
+		defer fmt.Fprintf(errout, "run 'limes fix' to automaticly resolv the problem\n")
+		defer fmt.Fprintf(errout, "\nwarning: %v\n", errConf)
 	}
 
-	fmt.Printf("Server:          %v\n", status)
-	fmt.Printf("AWS Config:      %v\n", env)
-	fmt.Printf("Role:            %v\n", r.Role)
+	if !status {
+		fmt.Fprintf(out, "Status:          %v\n", "nok")
+	} else {
+		fmt.Fprintf(out, "Status:          %v\n", "ok")
+	}
+	fmt.Fprintf(out, "Role:            %v\n", r.Role)
 
 	if args.Verbose == false {
 		return err
 	}
 
-	fmt.Printf("AccessKeyId:     %v\n", r.AccessKeyId)
-	fmt.Printf("SecretAccessKey: %v\n", r.SecretAccessKey)
-	fmt.Printf("SessionToken:    %v\n", r.SessionToken)
-	fmt.Printf("Expiration:      %v\n", r.Expiration)
+	fmt.Fprintf(out, "Server:          %v\n", service)
+	fmt.Fprintf(out, "AWS Config:      %v\n", env)
+	fmt.Fprintf(out, "AccessKeyId:     %v\n", r.AccessKeyId)
+	fmt.Fprintf(out, "SecretAccessKey: %v\n", r.SecretAccessKey)
+	fmt.Fprintf(out, "SessionToken:    %v\n", r.SessionToken)
+	fmt.Fprintf(out, "Expiration:      %v\n", r.Expiration)
 
 	return err
 }
 
-func (c *cliClient) assumeRole(role string, args *SwitchProfile) error {
-	r, err := c.srv.AssumeRole(context.Background(), &pb.AssumeRoleRequest{Name: role})
+func (c *cliClient) assumeRole(role string, MFA string) error {
+	r, err := c.srv.AssumeRole(context.Background(), &pb.AssumeRoleRequest{Name: role, Mfa: MFA})
 	if err != nil {
+		if grpc.Code(err) == codes.FailedPrecondition && grpc.ErrorDesc(err) == errMFANeeded.Error() {
+			return c.assumeRole(role, askMFA())
+		}
+
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		return err
+	}
+
+	fmt.Fprintf(out, "Assumed: %v\n", r.Role)
+	return nil
+}
+
+func (c *cliClient) setSourceProfile(role, MFA string) error {
+	r, err := c.srv.SetCredentials(context.Background(), &pb.AssumeRoleRequest{Name: role, Mfa: MFA})
+	if err != nil {
+		showCorrectionAndExit(err)
 		fmt.Fprintf(os.Stderr, "communication error: %v\n", err)
 		return err
 	}
@@ -201,6 +235,7 @@ func (c *cliClient) assumeRole(role string, args *SwitchProfile) error {
 func (c *cliClient) retreiveRole(role string) (*credentials.Credentials, error) {
 	r, err := c.srv.RetrieveRole(context.Background(), &pb.AssumeRoleRequest{Name: role})
 	if err != nil {
+		showCorrectionAndExit(err)
 		fmt.Fprintf(os.Stderr, "communication error: %v\n", err)
 		return nil, err
 	}
@@ -219,6 +254,23 @@ func (c *cliClient) retreiveRole(role string) (*credentials.Credentials, error) 
 	return creds, nil
 }
 
+// Config(ctx context.Context, in *Void, opts ...grpc.CallOption) (*ConfigReply, error)
+func (c *cliClient) listRoles() ([]string, error) {
+	r, err := c.srv.Config(context.Background(), &pb.Void{})
+	if err != nil {
+		showCorrectionAndExit(err)
+		fmt.Fprintf(os.Stderr, "communication error: %v\n", err)
+		return nil, err
+	}
+
+	roles := make([]string, 0, len(r.Profiles))
+	for role := range r.Profiles {
+		roles = append(roles, role)
+	}
+
+	return roles, nil
+}
+
 func checkMFA(config Config) string {
 	var MFA string
 
@@ -234,4 +286,31 @@ func checkMFA(config Config) string {
 	}
 
 	return MFA
+}
+
+// ask the user for an MFA token
+func askMFA() string {
+	var MFA string
+
+	fmt.Printf("Enter MFA: ")
+	_, err := fmt.Scanf("%s", &MFA)
+	if err != nil {
+		log.Fatalf("err: %v\n", err)
+	}
+
+	return MFA
+}
+
+func showCorrectionAndExit(err error) {
+	if grpc.Code(err) == codes.FailedPrecondition {
+		if grpc.ErrorDesc(err) == errMFANeeded.Error() {
+			fmt.Fprintf(errout, "%v: run 'limes credentials --mfa <serial>'\n", grpc.ErrorDesc(err))
+			os.Exit(1)
+		}
+
+		if grpc.ErrorDesc(err) == errUnknownProfile.Error() {
+			fmt.Fprintf(errout, "%v: run 'limes --profile <name> credentials [--mfa <serial>]'\n", grpc.ErrorDesc(err))
+			os.Exit(1)
+		}
+	}
 }

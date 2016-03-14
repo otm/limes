@@ -32,6 +32,10 @@ admin:
 
   # source_profile defines the profile to use when assuming this role
   source_profile: default
+
+  # assumable controls if it is possible to assume the role for the metadata service
+  # otherwise it is only possible to use with 'run' and 'env' subcommand
+  assumable: false
   region: eu-west-1
 
 # This is an example of an profile that can be assumed with `limes profile readonly`

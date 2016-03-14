@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"os/user"
 	"path/filepath"
 	"runtime"
+	"strings"
 )
 
 // Config hold configuration read from the configuration file
@@ -41,6 +43,7 @@ const (
 	awsConfDir         = ".aws"
 	awsConfigFile      = "config"
 	awsCredentialsFile = "credentials"
+	awsRenamePrefix    = "limes."
 	awsAccessKeyEnv    = "AWS_ACCESS_KEY_ID"
 	awsSecretKeyEnv    = "AWS_SECRET_ACCESS_KEY"
 )
@@ -49,6 +52,7 @@ var (
 	errActiveAWSEnvironment     = fmt.Errorf("active AWS environment variables")
 	errActiveAWSCredentialsFile = fmt.Errorf("active AWS credentials file")
 	errActiveAWSConfigFile      = fmt.Errorf("active AWS config file")
+	errKeyPairInAWSConfigFile   = fmt.Errorf("active AWS key pair in config file")
 )
 
 func checkActiveAWSConfig() (err error) {
@@ -63,10 +67,12 @@ func checkActiveAWSConfig() (err error) {
 	}
 
 	if active, err = doCheck(activeAWSConfigFile, err); active {
-		return errActiveAWSConfigFile
+		if active, err = doCheck(credentialsInAWSConfigFile, err); active {
+			return errKeyPairInAWSConfigFile
+		}
 	}
 
-	return fmt.Errorf("checkActiveAWSConfig: %v", err)
+	return err
 }
 
 func doCheck(fn func() (bool, error), err error) (bool, error) {
@@ -88,6 +94,31 @@ func activeAWSConfigFile() (active bool, err error) {
 	}
 
 	return true, nil
+}
+
+func credentialsInAWSConfigFile() (active bool, err error) {
+	home, err := homeDir()
+	if err != nil {
+		return false, fmt.Errorf("unable to fetch user information: %v", err)
+	}
+
+	file, err := os.Open(filepath.Join(home, awsConfDir, awsConfigFile))
+	if err != nil {
+		return false, err
+	}
+	defer file.Close()
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		txt := scanner.Text()
+		if strings.Contains(txt, "aws_access_key_id") {
+			return true, errKeyPairInAWSConfigFile
+		}
+		if strings.Contains(txt, "aws_secret_access_key") {
+			return true, errKeyPairInAWSConfigFile
+		}
+	}
+
+	return false, nil
 }
 
 func activeAWSCredentialsFile() (active bool, err error) {
