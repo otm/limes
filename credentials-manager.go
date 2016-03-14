@@ -18,6 +18,7 @@ import (
 var (
 	ErrMissingProfileDefault = fmt.Errorf("missing profile: default")
 	errMFANeeded             = fmt.Errorf("MFA needed")
+	errBaseMFANeeded         = fmt.Errorf("Base MFA needed")
 	errUnknownProfile        = fmt.Errorf("Unknown profile")
 	errSourceSessionExpired  = fmt.Errorf("Source session expired")
 )
@@ -193,10 +194,6 @@ func (m *CredentialsExpirationManager) Refresher() {
 // AssumeRole changes (assumes) the role `name`. An optional MFA can be passed
 // to the function, if set to "" the MFA is ignored
 func (m *CredentialsExpirationManager) AssumeRole(name, MFA string) error {
-	if m.err != nil {
-		return m.err
-	}
-
 	profile, ok := m.config.profiles[name]
 	if !ok {
 		return errUnknownProfile
