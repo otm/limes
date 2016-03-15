@@ -199,6 +199,8 @@ func (m *CredentialsExpirationManager) AssumeRole(name, MFA string) error {
 		return errUnknownProfile
 	}
 
+	log.Printf("source profile: %v, needed source profile: %v\n", m.sourceProfileName, profile.SourceProfile)
+	log.Printf("Cerentials expired: %v", m.sourceCredentialsExpired())
 	if profile.SourceProfile != m.sourceProfileName || m.sourceCredentialsExpired() {
 		err := m.SetSourceProfile(profile.SourceProfile, MFA)
 		if err != nil {
@@ -320,7 +322,7 @@ func (m *CredentialsExpirationManager) GetCredentials() (*sts.Credentials, error
 }
 
 func (m *CredentialsExpirationManager) sourceCredentialsExpired() bool {
-	return m.sourceSTSClient.Config.Credentials.IsExpired()
+	return m.sourceCredentials.Expiration.Before(time.Now())
 }
 
 func (m *CredentialsExpirationManager) refreshCredentials() error {
