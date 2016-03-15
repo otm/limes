@@ -47,7 +47,7 @@ func newCliClient(address string) *cliClient {
 }
 
 // StartService bootstraps the metadata service
-func StartService(configFile, adress, profileName, MFA string, fake bool) {
+func StartService(configFile, adress, profileName, MFA string, port int, fake bool) {
 	log := &ConsoleLogger{}
 	config := Config{}
 
@@ -76,7 +76,7 @@ func StartService(configFile, adress, profileName, MFA string, fake bool) {
 	// Startup the HTTP server and respond to requests.
 	listener, err := net.ListenTCP("tcp", &net.TCPAddr{
 		IP:   net.ParseIP("169.254.169.254"),
-		Port: 80,
+		Port: port,
 	})
 	if err != nil {
 		log.Fatalf("Could not startup the metadata interface: %s\n", err)

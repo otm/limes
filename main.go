@@ -24,9 +24,20 @@ const (
 
 //go:generate protoc -I proto/ proto/ims.proto --go_out=plugins=grpc:proto
 
+// add "port" to configuration file
+// rewrite .aws/config to match current profile
+// add assumable/protected directive
 // limes up => start web server
 // limes down => stop web server
-
+//
+// These are not well suited for multi-user systems
+// ipfw show
+// ipfw add 100 fwd 127.0.0.1,8080 tcp from any to any 80 in
+// ipfw flush
+//
+// iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 8080
+// iptables -t nat -I OUTPUT -p tcp -d 127.0.0.1 --dport 80 -j REDIRECT --to-ports 8080
+// iptables -t nat --line-numbers -n -L
 // Limes defines the cli commands
 type Limes struct {
 	Start         Start         `command:"start" description:"Start the Instance Metadata Service"`
@@ -65,6 +76,7 @@ type Start struct {
 	HelpFlag bool   `flag:"h, help" description:"Display this message and exit"`
 	Fake     bool   `flag:"fake" description:"Do not connect to AWS"`
 	MFA      string `option:"m, mfa" description:"MFA token to start up server"`
+	Port     int    `option:"p, port" default:"80" description:"Port used by the metadata service"`
 }
 
 // Stop defines the "stop" command cli flags and options
@@ -120,7 +132,7 @@ func (l *Start) Run(cmd *Limes, p writ.Path, positional []string) {
 	if cmd.Profile == "" {
 		cmd.Profile = "default"
 	}
-	StartService(cmd.ConfigFile, cmd.Adress, cmd.Profile, l.MFA, l.Fake)
+	StartService(cmd.ConfigFile, cmd.Adress, cmd.Profile, l.MFA, l.Port, l.Fake)
 }
 
 // Run is the handler for the stop command
