@@ -39,6 +39,12 @@ const (
 // iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 8080
 // iptables -t nat -I OUTPUT -p tcp -d 127.0.0.1 --dport 80 -j REDIRECT --to-ports 8080
 // iptables -t nat --line-numbers -n -L
+//
+// pf on Mac
+// echo "
+//   rdr pass inet proto tcp from any to any port 80 -> 127.0.0.1 port 8080
+//   rdr pass inet proto tcp from any to any port 443 -> 127.0.0.1 port 8443
+// " | sudo pfctl -ef
 
 // Limes defines the cli commands
 type Limes struct {
