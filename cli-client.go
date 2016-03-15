@@ -210,23 +210,6 @@ func (c *cliClient) assumeRole(role string, MFA string) error {
 	return nil
 }
 
-func (c *cliClient) setSourceProfile(role, MFA string) error {
-	r, err := c.srv.SetCredentials(context.Background(), &pb.AssumeRoleRequest{Name: role, Mfa: MFA})
-	if err != nil {
-		showCorrectionAndExit(err)
-		fmt.Fprintf(os.Stderr, "communication error: %v\n", err)
-		return err
-	}
-
-	if r.Error != "" {
-		fmt.Fprintf(os.Stderr, "error stopping server: %v\n", r.Error)
-		return err
-	}
-
-	fmt.Printf("Assumed: %v\n", role)
-	return nil
-}
-
 func (c *cliClient) retreiveRole(role string) (*credentials.Credentials, error) {
 	r, err := c.srv.RetrieveRole(context.Background(), &pb.AssumeRoleRequest{Name: role})
 	if err != nil {

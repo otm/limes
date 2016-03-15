@@ -50,28 +50,10 @@ type Limes struct {
 	ShowCmd       ShowCmd       `command:"show" description:"List/show information"`
 	Env           Env           `command:"env" description:"Set/clear environment variables"`
 	Fix           Fix           `command:"fix" description:"Fix configuration"`
-	Credentials   Credentials   `command:"credentials" description:"Set/Update credentials"`
 	Profile       string        `option:"profile" default:"" description:"Profile to assume"`
 	ConfigFile    string        `option:"c, config" default:"" description:"Configuration file"`
 	Adress        string        `option:"adress" default:"" description:"Address to connect to"`
 	Logging       bool          `flag:"verbose" description:"Enable verbose output"`
-}
-
-// Credentials defines the start subcommand cli flags and options
-type Credentials struct {
-	HelpFlag bool   `flag:"h, help" description:"Display this message and exit"`
-	MFA      string `option:"m, mfa" description:"MFA token to start up server"`
-}
-
-func (l *Credentials) run(cmd *Limes, p writ.Path, positional []string) {
-	if l.HelpFlag {
-		p.Last().ExitHelp(nil)
-	}
-
-	rpc := newCliClient(cmd.Adress)
-	defer rpc.close()
-	rpc.setSourceProfile(cmd.Profile, l.MFA)
-
 }
 
 // Start defines the "start" command cli flags and options
@@ -390,7 +372,6 @@ func main() {
 	cmd.Subcommand("assume").Help.Usage = "Usage: limes assume --base-session <name>"
 	cmd.Subcommand("show").Help.Usage = "Usage: limes show [component]"
 	cmd.Subcommand("env").Help.Usage = "Usage: limes [--profile <name>] env"
-	cmd.Subcommand("credentials").Help.Usage = "Usage limes [--profile <name>] credentials [--mfa <token>]"
 	cmd.Subcommand("run").Help.Usage = "Usage: limes [--profile <name>] run <cmd> [arg...]"
 
 	path, positional, err := cmd.Decode(os.Args[1:])
@@ -428,8 +409,6 @@ func main() {
 		limes.ShowCmd.Run(limes, path, positional)
 	case "limes env":
 		limes.Env.Run(limes, path, positional)
-	case "limes credentials":
-		limes.Credentials.run(limes, path, positional)
 	case "limes run":
 		limes.RunCmd.Run(limes, path, positional)
 	default:

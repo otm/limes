@@ -108,34 +108,6 @@ func (h *CliHandler) AssumeRole(ctx context.Context, in *pb.AssumeRoleRequest) (
 	}, nil
 }
 
-// AssumeRole will switch the current role of the metadata service
-func (h *CliHandler) SetCredentials(ctx context.Context, in *pb.AssumeRoleRequest) (*pb.StatusReply, error) {
-	err := h.credsManager.SetSourceProfile(in.Name, in.Mfa)
-	if err != nil {
-		if err == errMFANeeded || err == errUnknownProfile {
-			return nil, grpc.Errorf(codes.FailedPrecondition, err.Error())
-		}
-		return nil, err
-	}
-
-	creds, err := h.credsManager.GetCredentials()
-	if err != nil {
-		if err == errMFANeeded || err == errUnknownProfile {
-			return nil, grpc.Errorf(codes.FailedPrecondition, err.Error())
-		}
-		return nil, err
-	}
-
-	return &pb.StatusReply{
-		Error:           "",
-		Role:            h.credsManager.Role(),
-		AccessKeyId:     *creds.AccessKeyId,
-		SecretAccessKey: *creds.SecretAccessKey,
-		SessionToken:    *creds.SessionToken,
-		Expiration:      creds.Expiration.String(),
-	}, nil
-}
-
 // RetrieveRole assumes a role, but does not update the server
 func (h *CliHandler) RetrieveRole(ctx context.Context, in *pb.AssumeRoleRequest) (*pb.StatusReply, error) {
 	creds, err := h.credsManager.RetrieveRole(in.Name, in.Mfa)

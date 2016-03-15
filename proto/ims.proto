@@ -12,7 +12,6 @@ service InstanceMetaService {
   rpc AssumeRole(AssumeRoleRequest) returns (StatusReply) {}
   rpc RetrieveRole(AssumeRoleRequest) returns (StatusReply) {}
   rpc Config(Void) returns (ConfigReply) {}
-  rpc SetCredentials(AssumeRoleRequest) returns (StatusReply) {}
 }
 
 message Void {}
