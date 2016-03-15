@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"net"
 	"os"
 
@@ -23,7 +22,6 @@ type CliHandler struct {
 
 // NewCliHandler returns a cliHandler
 func NewCliHandler(address string, credsManager CredentialsManager, stop chan struct{}, config Config) *CliHandler {
-	fmt.Println("new cli handler")
 	return &CliHandler{
 		address:      address,
 		log:          &ConsoleLogger{},
@@ -36,13 +34,13 @@ func NewCliHandler(address string, credsManager CredentialsManager, stop chan st
 // Start handles the cli start command
 func (h *CliHandler) Start() error {
 	// setupt socket
+	h.log.Debug("Creating socket: %v\n", h.address)
 	localSocket, err := net.Listen("unix", h.address)
 	if err != nil {
 		return err
 	}
 
 	// we run as root, so let others connect to the socket
-	h.log.Debug("Setting filemode on %v\n", h.address)
 	err = os.Chmod(h.address, 0777)
 	if err != nil {
 		return err
@@ -79,9 +77,7 @@ func (h *CliHandler) Status(ctx context.Context, in *pb.Void) (*pb.StatusReply, 
 func (h *CliHandler) Stop(ctx context.Context, in *pb.Void) (*pb.StopReply, error) {
 	close(h.stop)
 
-	return &pb.StopReply{
-		Error: "Shutting down",
-	}, nil
+	return &pb.StopReply{}, nil
 }
 
 // AssumeRole will switch the current role of the metadata service

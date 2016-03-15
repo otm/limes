@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -38,6 +39,7 @@ const (
 // iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 8080
 // iptables -t nat -I OUTPUT -p tcp -d 127.0.0.1 --dport 80 -j REDIRECT --to-ports 8080
 // iptables -t nat --line-numbers -n -L
+
 // Limes defines the cli commands
 type Limes struct {
 	Start         Start         `command:"start" description:"Start the Instance Metadata Service"`
@@ -52,6 +54,7 @@ type Limes struct {
 	Profile       string        `option:"profile" default:"" description:"Profile to assume"`
 	ConfigFile    string        `option:"c, config" default:"" description:"Configuration file"`
 	Adress        string        `option:"adress" default:"" description:"Address to connect to"`
+	Logging       bool          `flag:"verbose" description:"Enable verbose output"`
 }
 
 // Credentials defines the start subcommand cli flags and options
@@ -404,6 +407,9 @@ func main() {
 
 	limes.Adress = setDefaultSocketAdress(limes.Adress)
 	limes.ConfigFile = setDefaultConfigPath(limes.ConfigFile)
+	if !limes.Logging {
+		log.SetOutput(ioutil.Discard)
+	}
 
 	switch path.String() {
 	case "limes":

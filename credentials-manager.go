@@ -16,7 +16,7 @@ import (
 
 // Common errors for credential manager
 var (
-	ErrMissingProfileDefault = fmt.Errorf("missing profile: default")
+	errMissingProfileDefault = fmt.Errorf("missing profile: default")
 	errMFANeeded             = fmt.Errorf("MFA needed")
 	errBaseMFANeeded         = fmt.Errorf("Base MFA needed")
 	errUnknownProfile        = fmt.Errorf("Unknown profile")
@@ -87,8 +87,8 @@ func NewCredentialsExpirationManager(profileName string, conf Config, mfa string
 	}
 	err := cm.SetSourceProfile(profileName, mfa)
 	if err != nil {
-		fmt.Fprintf(errout, "%v\n", err)
 		if isFatalError(err) {
+			fmt.Fprintf(errout, "%v\n", err)
 			os.Exit(1)
 		}
 	}
@@ -142,15 +142,19 @@ func (m *CredentialsExpirationManager) SetSourceProfile(name, mfa string) error 
 	}
 
 	if profile.MFASerial != "" {
+		log.Println("Setting serial: ", profile.MFASerial)
 		sessionTokenInput.SerialNumber = aws.String(profile.MFASerial)
 	}
 	if mfa != "" {
+		log.Println("Setting mfa:", mfa)
 		sessionTokenInput.TokenCode = aws.String(mfa)
 		fatal = true
 	}
 
+	log.Println("Serial: ", profile.MFASerial, ", token: ", mfa)
 	sessionTokenResp, err := stsClient.GetSessionToken(sessionTokenInput)
 	if err != nil {
+		log.Println("request failed:", sessionTokenInput)
 		err = checkErr(err)
 		m.err = err
 		return err
@@ -263,10 +267,9 @@ func (m *CredentialsExpirationManager) RetrieveRoleARN(RoleARN, MFASerial, MFA s
 
 	if MFASerial != "" {
 		assumeRoleInput.SerialNumber = &MFASerial
-	}
-
-	if MFA != "" {
-		assumeRoleInput.TokenCode = &MFA
+		if MFA != "" {
+			assumeRoleInput.TokenCode = &MFA
+		}
 	}
 
 	resp, err := m.sourceSTSClient.AssumeRole(assumeRoleInput)
@@ -322,6 +325,9 @@ func (m *CredentialsExpirationManager) GetCredentials() (*sts.Credentials, error
 }
 
 func (m *CredentialsExpirationManager) sourceCredentialsExpired() bool {
+	if m.sourceCredentials == nil {
+		return true
+	}
 	return m.sourceCredentials.Expiration.Before(time.Now())
 }
 

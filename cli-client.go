@@ -54,10 +54,10 @@ func StartService(configFile, adress, profileName, MFA string, port int, fake bo
 	// TODO: Move to function and use a default configuration file
 	if configFile != "" {
 		// Parse in options from the given config file.
-		log.Debug("Loading configuration from %s\n", configFile)
+		log.Debug("Loading configuration: %s\n", configFile)
 		configContents, configErr := ioutil.ReadFile(configFile)
 		if configErr != nil {
-			log.Fatalf("Could not read from config file. The error was: %s\n", configErr.Error())
+			log.Fatalf("Error reading config: %s\n", configErr.Error())
 		}
 
 		configParseErr := yaml.Unmarshal(configContents, &config.profiles)
@@ -69,7 +69,7 @@ func StartService(configFile, adress, profileName, MFA string, port int, fake bo
 	}
 
 	defer func() {
-		log.Debug("Removing UNIX socket.\n")
+		log.Debug("Removing socket: %v\n", adress)
 		os.Remove(adress)
 	}()
 
@@ -79,11 +79,7 @@ func StartService(configFile, adress, profileName, MFA string, port int, fake bo
 		Port: port,
 	})
 	if err != nil {
-		log.Fatalf("Could not startup the metadata interface: %s\n", err)
-	}
-
-	if MFA == "" {
-		MFA = checkMFA(config)
+		log.Fatalf("Failed to bind to socket: %s\n", err)
 	}
 
 	var credsManager CredentialsManager
@@ -93,9 +89,10 @@ func StartService(configFile, adress, profileName, MFA string, port int, fake bo
 		credsManager = NewCredentialsExpirationManager(profileName, config, MFA)
 	}
 
+	log.Info("Starting web service: %v:%v\n", "169.254.169.254", port)
 	mds, metadataError := NewMetadataService(listener, credsManager)
 	if metadataError != nil {
-		log.Fatalf("Could not create metadata service: %s\n", metadataError.Error())
+		log.Fatalf("Failed to start metadata service: %s\n", metadataError.Error())
 	}
 	mds.Start()
 
@@ -103,15 +100,15 @@ func StartService(configFile, adress, profileName, MFA string, port int, fake bo
 	agentServer := NewCliHandler(adress, credsManager, stop, config)
 	err = agentServer.Start()
 	if err != nil {
-		log.Fatalf("Could not start agentServer: %s\n", err.Error())
+		log.Fatalf("Failed to start agentServer: %s\n", err.Error())
 	}
 
 	// Wait for a graceful shutdown signal
 	terminate := make(chan os.Signal)
 	signal.Notify(terminate, syscall.SIGINT, syscall.SIGTERM)
 
-	log.Info("Instance Metadata Service is online, waiting for termination.\n")
-	defer log.Info("Caught signal; shutting down.\n")
+	log.Info("Service: online\n")
+	defer log.Info("Caught signal: shutting down.\n")
 
 	for {
 		select {
@@ -128,18 +125,17 @@ func (c *cliClient) close() error {
 }
 
 func (c *cliClient) stop(args *Stop) error {
-	r, err := c.srv.Stop(context.Background(), &pb.Void{})
+	_, err := c.srv.Stop(context.Background(), &pb.Void{})
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "communication error: %v\n", err)
+		if grpc.ErrorDesc(err) == grpc.ErrClientConnClosing.Error() {
+			return nil
+		}
+
+		fmt.Fprintf(os.Stderr, "limes: unknown error: %v\n", err)
 		os.Exit(1)
 	}
 
-	if r.Error != "" {
-		fmt.Fprintf(os.Stderr, "error stopping server: %v\n", r.Error)
-		os.Exit(1)
-	}
-
-	fmt.Println("IMS service is stopping")
+	fmt.Println("Limes service is stopping")
 
 	return nil
 }
@@ -160,8 +156,7 @@ func (c *cliClient) status(args *Status) error {
 		service = "down"
 		status = false
 
-		showCorrectionAndExit(err)
-		defer fmt.Fprintf(errout, "\nerror communicating with daemon: %v\n", err)
+		defer fmt.Fprintf(errout, "\n%v", lookupCorrection(err))
 	}
 
 	if r.Error != "" {
@@ -271,23 +266,6 @@ func (c *cliClient) listRoles() ([]string, error) {
 	return roles, nil
 }
 
-func checkMFA(config Config) string {
-	var MFA string
-
-	defaultProfile := config.profiles["default"]
-	if defaultProfile.MFASerial == "" {
-		return ""
-	}
-
-	fmt.Printf("Enter MFA: ")
-	_, err := fmt.Scanf("%s", &MFA)
-	if err != nil {
-		log.Fatalf("err: %v\n", err)
-	}
-
-	return MFA
-}
-
 // ask the user for an MFA token
 func askMFA() string {
 	var MFA string
@@ -302,15 +280,33 @@ func askMFA() string {
 }
 
 func showCorrectionAndExit(err error) {
+	fmt.Fprintf(errout, lookupCorrection(err))
+	os.Exit(1)
+}
+
+func lookupCorrection(err error) string {
+	switch grpc.Code(err) {
+	case codes.FailedPrecondition:
+		switch grpc.ErrorDesc(err) {
+		case errMFANeeded.Error():
+			return fmt.Sprintf("%v: run 'limes credentials --mfa <serial>'\n", grpc.ErrorDesc(err))
+		case errUnknownProfile.Error():
+			return fmt.Sprintf("%v: run 'limes assume <profile>'\n", grpc.ErrorDesc(err))
+		}
+	case codes.Unknown:
+		switch grpc.ErrorDesc(err) {
+		case grpc.ErrClientConnClosing.Error(), grpc.ErrClientConnTimeout.Error():
+			return fmt.Sprintf("service down: run 'limes start'\n")
+		}
+	}
 	if grpc.Code(err) == codes.FailedPrecondition {
 		if grpc.ErrorDesc(err) == errMFANeeded.Error() {
-			fmt.Fprintf(errout, "%v: run 'limes credentials --mfa <serial>'\n", grpc.ErrorDesc(err))
-			os.Exit(1)
+			return fmt.Sprintf("%v: run 'limes credentials --mfa <serial>'\n", grpc.ErrorDesc(err))
 		}
 
 		if grpc.ErrorDesc(err) == errUnknownProfile.Error() {
-			fmt.Fprintf(errout, "%v: run 'limes --profile <name> credentials [--mfa <serial>]'\n", grpc.ErrorDesc(err))
-			os.Exit(1)
+			return fmt.Sprintf("%v: run 'limes --profile <name> credentials [--mfa <serial>]'\n", grpc.ErrorDesc(err))
 		}
 	}
+	return fmt.Sprintf("%s\n", err)
 }
