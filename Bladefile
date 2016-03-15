@@ -6,9 +6,14 @@ function target.release(version, name, description)
 
 	name = name or string.format("limes %s", version)
 	description = description or string.format("limes %s", version)
+	preRelease = ""
 
 	if not string.match(version, "^v%d[.]%d[.]%d$") then
-		error("fatal: version must be on the form 'vX.X.X'")
+		if string.match(version, "^v%d[.]%d[.]%d%-beta%d$") then
+			preRelease = "--pre-release"
+		else
+			error("fatal: version must be on the form 'vX.X.X'")
+		end
 	end
 
 	exitCode, output = blade._exec('git status --porcelain')
@@ -20,7 +25,7 @@ function target.release(version, name, description)
 	blade.sh('git tag ' .. version)
 	blade.sh('git push --tags')
 
-	blade.sh(string.format("github-release release --user otm --repo limes --tag %s --name '%s' --description '%s'", version, name, description))
+	blade.sh(string.format("github-release release --user otm --repo limes --tag %s --name '%s' --description '%s' %s", version, name, description, preRelease))
 
 	for file in io.popen("ls -1 limes_*"):lines() do
 		code = blade.system(string.format("github-release upload --user otm --repo limes --tag %s --name %s --file %s", version, file, file))
@@ -45,7 +50,7 @@ end
 
 --clean working directory of builds
 function target.clean()
-	blade.exec("rm blade blade_*")
+	blade.exec("rm limes limes_*")
 end
 
 --cross compile
