@@ -1,0 +1,71 @@
+# bash completion for limes(8)                              -*- shell-script -*-
+
+_limes()
+{
+    local cur prev words cword
+    _init_completion || return
+
+    #cur="${COMP_WORDS[COMP_CWORD]}"
+    #prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+    local i
+
+    # # complete on the command to run
+    for (( i=1; i <= COMP_CWORD; i++ )); do
+        if [[ "${COMP_WORDS[i]}" == "run" ]]; then
+            i=$((i+1))
+            local root_command=${COMP_WORDS[i]}
+            _command_offset $i
+            return
+        fi
+    done
+
+    case "$prev" in
+        --profile|assume|profile|env)
+            profiles=$(limes show profiles)
+            COMPREPLY=( $( compgen -W "${profiles}" -- "$cur" ) )
+            return
+            ;;
+        -c|--config)
+            if  [[ $(declare -f _filedir) ]]; then
+              _filedir
+            else
+              COMPREPLY=( $(compgen -f -- ${cur}) )
+            fi
+            return
+            ;;
+        --adress)
+            if  [[ $(declare -f _filedir) ]]; then
+              _filedir
+            else
+              COMPREPLY=( $(compgen -f -- ${cur}) )
+            fi
+            return
+            ;;
+        fix)
+            if [[ "$cur" == -* ]]; then
+              COMPREPLY=( $( compgen -W '--restore' -- "$cur" ) )
+              return
+            fi
+            return
+    esac
+
+    if [[ ${words[@]} =~ "start" ]]; then
+      if [[ "$cur" == -* ]]; then
+        COMPREPLY=( $( compgen -W '-p --port' -- "$cur" ) )
+        return
+      fi
+      return
+    fi
+
+
+    if [[ "$cur" == -* ]]; then
+        COMPREPLY=( $( compgen -W '--profile -c --config --adress' -- "$cur" ) )
+        return
+    fi
+
+    COMPREPLY=( $( compgen -W 'start stop status assume run env fix' -- "$cur" ) )
+
+} && complete -F _limes limes
+
+# ex: ts=4 sw=4 et filetype=sh
