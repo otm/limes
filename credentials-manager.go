@@ -81,6 +81,13 @@ type CredentialsExpirationManager struct {
 // It creates a session, then it will call GetSessionToken to retrieve a pair of
 // temporary credentials.
 func NewCredentialsExpirationManager(profileName string, conf Config, mfa string) *CredentialsExpirationManager {
+	cm := newTemporaryCredentialsManager(profileName, conf, mfa)
+
+	go cm.Refresher()
+	return cm
+}
+
+func newTemporaryCredentialsManager(profileName string, conf Config, mfa string) *CredentialsExpirationManager {
 	cm := &CredentialsExpirationManager{
 		role:   profileName,
 		config: conf,
@@ -93,7 +100,6 @@ func NewCredentialsExpirationManager(profileName string, conf Config, mfa string
 		}
 	}
 
-	go cm.Refresher()
 	return cm
 }
 
@@ -219,23 +225,21 @@ func (m *CredentialsExpirationManager) AssumeRole(name, MFA string) error {
 // RetrieveRole will assume and fetch temporary credentials, but does not update
 // the role and credentials stored by the manager.
 func (m *CredentialsExpirationManager) RetrieveRole(name, MFA string) (*sts.Credentials, error) {
-	if m.err != nil {
-		return nil, m.err
-	}
-
 	profile, ok := m.config.profiles[name]
 	if !ok {
 		return nil, errUnknownProfile
 	}
 
-	if profile.SourceProfile != m.sourceProfileName || m.sourceCredentialsExpired() {
-		err := m.SetSourceProfile(profile.SourceProfile, MFA)
-		if err != nil {
-			return nil, err
-		}
+	if profile.SourceProfile == m.sourceProfileName && !m.sourceCredentialsExpired() {
+		return m.RetrieveRoleARN(profile.RoleARN, profile.MFASerial, MFA)
 	}
 
-	return m.RetrieveRoleARN(profile.RoleARN, profile.MFASerial, MFA)
+	cm := newTemporaryCredentialsManager("default", m.config, "")
+	err := cm.SetSourceProfile(profile.SourceProfile, MFA)
+	if err != nil {
+		return nil, err
+	}
+	return cm.RetrieveRoleARN(profile.RoleARN, profile.MFASerial, MFA)
 }
 
 // RetrieveRoleARN assumes and fetch temporary credentials based on the RoleArn

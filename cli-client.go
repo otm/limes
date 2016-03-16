@@ -210,16 +210,15 @@ func (c *cliClient) assumeRole(role string, MFA string) error {
 	return nil
 }
 
-func (c *cliClient) retreiveRole(role string) (*credentials.Credentials, error) {
-	r, err := c.srv.RetrieveRole(context.Background(), &pb.AssumeRoleRequest{Name: role})
+func (c *cliClient) retreiveRole(role, MFA string) (*credentials.Credentials, error) {
+	fmt.Println("role:", role, ", mfa:", MFA)
+	r, err := c.srv.RetrieveRole(context.Background(), &pb.AssumeRoleRequest{Name: role, Mfa: MFA})
 	if err != nil {
-		showCorrectionAndExit(err)
-		fmt.Fprintf(os.Stderr, "communication error: %v\n", err)
-		return nil, err
-	}
+		if grpc.Code(err) == codes.FailedPrecondition && grpc.ErrorDesc(err) == errMFANeeded.Error() {
+			return c.retreiveRole(role, askMFA())
+		}
 
-	if r.Error != "" {
-		fmt.Fprintf(os.Stderr, "error stopping server: %v\n", r.Error)
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return nil, err
 	}
 
@@ -280,15 +279,6 @@ func lookupCorrection(err error) string {
 		switch grpc.ErrorDesc(err) {
 		case grpc.ErrClientConnClosing.Error(), grpc.ErrClientConnTimeout.Error():
 			return fmt.Sprintf("service down: run 'limes start'\n")
-		}
-	}
-	if grpc.Code(err) == codes.FailedPrecondition {
-		if grpc.ErrorDesc(err) == errMFANeeded.Error() {
-			return fmt.Sprintf("%v: run 'limes credentials --mfa <serial>'\n", grpc.ErrorDesc(err))
-		}
-
-		if grpc.ErrorDesc(err) == errUnknownProfile.Error() {
-			return fmt.Sprintf("%v: run 'limes --profile <name> credentials [--mfa <serial>]'\n", grpc.ErrorDesc(err))
 		}
 	}
 	return fmt.Sprintf("%s\n", err)

@@ -247,7 +247,7 @@ func (l *RunCmd) Run(cmd *Limes, p writ.Path, positional []string) {
 	if cmd.Profile != "" {
 		rpc := newCliClient(cmd.Adress)
 		defer rpc.close()
-		creds, err := rpc.retreiveRole(cmd.Profile)
+		creds, err := rpc.retreiveRole(cmd.Profile, "")
 		if err != nil {
 			os.Exit(1)
 		}
@@ -270,21 +270,19 @@ func (l *RunCmd) Run(cmd *Limes, p writ.Path, positional []string) {
 
 // Run is the handler for the show subcommand
 func (l *ShowCmd) Run(cmd *Limes, p writ.Path, positional []string) {
+	options := []string{"profiles"}
+	msg := fmt.Errorf("valid components: %v\n", strings.Join(options, ", "))
+
 	if l.HelpFlag {
-		p.Last().ExitHelp(nil)
+		p.Last().ExitHelp(msg)
 	}
 
-	if len(positional) > 1 {
-		p.Last().ExitHelp(nil)
-	}
-
-	options := []string{"roles"}
 	if len(positional) == 0 {
-		p.Last().ExitHelp(fmt.Errorf("valid components: %v\n", strings.Join(options, ", ")))
+		p.Last().ExitHelp(msg)
 	}
 
 	switch positional[0] {
-	case "roles":
+	case "profiles":
 		rpc := newCliClient(cmd.Adress)
 		defer rpc.close()
 		roles, err := rpc.listRoles()
@@ -294,7 +292,7 @@ func (l *ShowCmd) Run(cmd *Limes, p writ.Path, positional []string) {
 		}
 		fmt.Printf("%v\n", strings.Join(roles, "\n"))
 	default:
-		p.Last().ExitHelp(nil)
+		p.Last().ExitHelp(msg)
 	}
 }
 
@@ -304,16 +302,23 @@ func (l *Env) Run(cmd *Limes, p writ.Path, positional []string) {
 		p.Last().ExitHelp(nil)
 	}
 
-	profile := "default"
-	profileFlag := ""
+	profile := ""
 	if cmd.Profile != "" {
 		profile = cmd.Profile
-		profileFlag = fmt.Sprintf("--profile %v ", profile)
+	}
+
+	if len(positional) == 1 {
+		profile = positional[0]
+	}
+
+	if profile == "" {
+		p.Last().ExitHelp(nil)
 	}
 
 	rpc := newCliClient(cmd.Adress)
 	defer rpc.close()
-	creds, err := rpc.retreiveRole(profile)
+
+	creds, err := rpc.retreiveRole(profile, "")
 	if err != nil {
 		fmt.Fprintf(errout, "error retreiving role: %v\n", err)
 		os.Exit(1)
@@ -327,7 +332,7 @@ func (l *Env) Run(cmd *Limes, p writ.Path, positional []string) {
 	fmt.Fprintf(out, "export AWS_SECRET_ACCESS_KEY=%v\n", credentials.SecretAccessKey)
 	fmt.Fprintf(out, "export AWS_SESSION_TOKEN=%v\n", credentials.SessionToken)
 	fmt.Fprintf(out, "# Run this command to configure your shell:\n")
-	fmt.Fprintf(out, "# eval \"$(limes %senv)\"\n", profileFlag)
+	fmt.Fprintf(out, "# eval \"$(limes env %s)\"\n", profile)
 }
 
 func setDefaultSocketAdress(adress string) string {
@@ -370,14 +375,14 @@ func injectCmdBreak(needle string, args []string) []string {
 func main() {
 	limes := &Limes{}
 	cmd := writ.New("limes", limes)
-	cmd.Help.Usage = "Usage: limes COMMAND [OPTION]... [ARG]..."
-	cmd.Subcommand("start").Help.Usage = "Usage: limes [--profile <name>] start [--mfa <token>]"
+	cmd.Help.Usage = "Usage: limes [OPTIONS]... COMMAND [OPTION]... [ARG]..."
+	cmd.Subcommand("start").Help.Usage = "Usage: limes start"
 	cmd.Subcommand("stop").Help.Usage = "Usage: limes stop"
 	cmd.Subcommand("status").Help.Usage = "Usage: limes status"
 	cmd.Subcommand("fix").Help.Usage = "Usage: limes fix [--restore]"
-	cmd.Subcommand("assume").Help.Usage = "Usage: limes assume --base-session <name>"
+	cmd.Subcommand("assume").Help.Usage = "Usage: limes assume <profile>"
 	cmd.Subcommand("show").Help.Usage = "Usage: limes show [component]"
-	cmd.Subcommand("env").Help.Usage = "Usage: limes [--profile <name>] env"
+	cmd.Subcommand("env").Help.Usage = "Usage: limes env <profile>"
 	cmd.Subcommand("run").Help.Usage = "Usage: limes [--profile <name>] run <cmd> [arg...]"
 
 	path, positional, err := cmd.Decode(os.Args[1:])
