@@ -47,7 +47,7 @@ func newCliClient(address string) *cliClient {
 }
 
 // StartService bootstraps the metadata service
-func StartService(configFile, adress, profileName, MFA string, port int, fake bool) {
+func StartService(configFile, address, profileName, MFA string, port int, fake bool) {
 	log := &ConsoleLogger{}
 	config := Config{}
 
@@ -69,8 +69,8 @@ func StartService(configFile, adress, profileName, MFA string, port int, fake bo
 	}
 
 	defer func() {
-		log.Debug("Removing socket: %v\n", adress)
-		os.Remove(adress)
+		log.Debug("Removing socket: %v\n", address)
+		os.Remove(address)
 	}()
 
 	// Startup the HTTP server and respond to requests.
@@ -97,7 +97,7 @@ func StartService(configFile, adress, profileName, MFA string, port int, fake bo
 	mds.Start()
 
 	stop := make(chan struct{})
-	agentServer := NewCliHandler(adress, credsManager, stop, config)
+	agentServer := NewCliHandler(address, credsManager, stop, config)
 	err = agentServer.Start()
 	if err != nil {
 		log.Fatalf("Failed to start agentServer: %s\n", err.Error())
@@ -179,7 +179,7 @@ func (c *cliClient) status(args *Status) error {
 	} else {
 		fmt.Fprintf(out, "Status:          %v\n", "ok")
 	}
-	fmt.Fprintf(out, "Role:            %v\n", r.Role)
+	fmt.Fprintf(out, "Profile:            %v\n", r.Role)
 
 	if args.Verbose == false {
 		return err
@@ -271,7 +271,7 @@ func lookupCorrection(err error) string {
 	case codes.FailedPrecondition:
 		switch grpc.ErrorDesc(err) {
 		case errMFANeeded.Error():
-			return fmt.Sprintf("%v: run 'limes credentials --mfa <serial>'\n", grpc.ErrorDesc(err))
+			return fmt.Sprintf("%v: run 'limes assume <profile>'\n", grpc.ErrorDesc(err))
 		case errUnknownProfile.Error():
 			return fmt.Sprintf("%v: run 'limes assume <profile>'\n", grpc.ErrorDesc(err))
 		}

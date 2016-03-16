@@ -58,7 +58,7 @@ type Limes struct {
 	Fix           Fix           `command:"fix" description:"Fix configuration"`
 	Profile       string        `option:"profile" default:"" description:"Profile to assume"`
 	ConfigFile    string        `option:"c, config" default:"" description:"Configuration file"`
-	Adress        string        `option:"adress" default:"" description:"Address to connect to"`
+	Address       string        `option:"address" default:"" description:"Address to connect to"`
 	Logging       bool          `flag:"verbose" description:"Enable verbose output"`
 }
 
@@ -123,7 +123,7 @@ func (l *Start) Run(cmd *Limes, p writ.Path, positional []string) {
 	if cmd.Profile == "" {
 		cmd.Profile = "default"
 	}
-	StartService(cmd.ConfigFile, cmd.Adress, cmd.Profile, l.MFA, l.Port, l.Fake)
+	StartService(cmd.ConfigFile, cmd.Address, cmd.Profile, l.MFA, l.Port, l.Fake)
 }
 
 // Run is the handler for the stop command
@@ -132,7 +132,7 @@ func (l *Stop) Run(cmd *Limes, p writ.Path, positional []string) {
 		p.Last().ExitHelp(nil)
 	}
 
-	rpc := newCliClient(cmd.Adress)
+	rpc := newCliClient(cmd.Address)
 	defer rpc.close()
 	rpc.stop(l)
 }
@@ -143,7 +143,7 @@ func (l *Status) Run(cmd *Limes, p writ.Path, positional []string) {
 		p.Last().ExitHelp(nil)
 	}
 
-	rpc := newCliClient(cmd.Adress)
+	rpc := newCliClient(cmd.Address)
 	defer rpc.close()
 	rpc.status(l)
 }
@@ -231,7 +231,7 @@ func (l *SwitchProfile) Run(cmd *Limes, p writ.Path, positional []string) {
 		p.Last().ExitHelp(errors.New("profile name is required"))
 	}
 
-	rpc := newCliClient(cmd.Adress)
+	rpc := newCliClient(cmd.Address)
 	defer rpc.close()
 	rpc.assumeRole(positional[0], "")
 }
@@ -245,7 +245,7 @@ func (l *RunCmd) Run(cmd *Limes, p writ.Path, positional []string) {
 	command := exec.Command(positional[0], positional[1:]...)
 
 	if cmd.Profile != "" {
-		rpc := newCliClient(cmd.Adress)
+		rpc := newCliClient(cmd.Address)
 		defer rpc.close()
 		creds, err := rpc.retreiveRole(cmd.Profile, "")
 		if err != nil {
@@ -283,7 +283,7 @@ func (l *ShowCmd) Run(cmd *Limes, p writ.Path, positional []string) {
 
 	switch positional[0] {
 	case "profiles":
-		rpc := newCliClient(cmd.Adress)
+		rpc := newCliClient(cmd.Address)
 		defer rpc.close()
 		roles, err := rpc.listRoles()
 		if err != nil {
@@ -315,17 +315,17 @@ func (l *Env) Run(cmd *Limes, p writ.Path, positional []string) {
 		p.Last().ExitHelp(nil)
 	}
 
-	rpc := newCliClient(cmd.Adress)
+	rpc := newCliClient(cmd.Address)
 	defer rpc.close()
 
 	creds, err := rpc.retreiveRole(profile, "")
 	if err != nil {
-		fmt.Fprintf(errout, "error retreiving role: %v\n", err)
+		fmt.Fprintf(errout, "error retreiving profile: %v\n", err)
 		os.Exit(1)
 	}
 	credentials, err := creds.Get()
 	if err != nil {
-		fmt.Fprintf(errout, "error unpacking role: %v", err)
+		fmt.Fprintf(errout, "error unpacking profile: %v", err)
 		os.Exit(1)
 	}
 	fmt.Fprintf(out, "export AWS_ACCESS_KEY_ID=%v\n", credentials.AccessKeyID)
@@ -335,9 +335,9 @@ func (l *Env) Run(cmd *Limes, p writ.Path, positional []string) {
 	fmt.Fprintf(out, "# eval \"$(limes env %s)\"\n", profile)
 }
 
-func setDefaultSocketAdress(adress string) string {
-	if adress != "" {
-		return adress
+func setDefaultSocketAddress(address string) string {
+	if address != "" {
+		return address
 	}
 
 	home, err := homeDir()
@@ -397,7 +397,7 @@ func main() {
 		}
 	}
 
-	limes.Adress = setDefaultSocketAdress(limes.Adress)
+	limes.Address = setDefaultSocketAddress(limes.Address)
 	limes.ConfigFile = setDefaultConfigPath(limes.ConfigFile)
 	if !limes.Logging {
 		log.SetOutput(ioutil.Discard)

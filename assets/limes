@@ -34,7 +34,7 @@ _limes()
             fi
             return
             ;;
-        --adress)
+        --address)
             if  [[ $(declare -f _filedir) ]]; then
               _filedir
             else
