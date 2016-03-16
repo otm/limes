@@ -21,7 +21,7 @@ function target.release(version, name, description)
 		error("fatal: uncommited changes")
 	end
 
-	target.build()
+	target.build(version)
 	blade.sh('git tag ' .. version)
 	blade.sh('git push --tags')
 
@@ -54,9 +54,12 @@ function target.clean()
 end
 
 --cross compile
-function target.build()
+function target.build(version, date)
 	sh.go("generate")
-	sh.gox("-os", "linux darwin"):print()
+	version = version or "dev-build"
+	date = os.date("%Y-%m-%d %H:%M:%S")
+	ldflags=string.format("-X main.version=%s -X 'main.date=%s'", version, date)
+	sh.gox("-os", "linux darwin", "-ldflags", ldflags):print()
 end
 
 --download, install and setup gox for cross compile

@@ -18,6 +18,9 @@ var (
 	errout = os.Stderr
 )
 
+var version = ""
+var date = ""
+
 const (
 	configFilePath   = ".limes/config"
 	domainSocketPath = ".limes/socket"
@@ -60,6 +63,7 @@ type Limes struct {
 	ConfigFile    string        `option:"c, config" default:"" description:"Configuration file"`
 	Address       string        `option:"address" default:"" description:"Address to connect to"`
 	Logging       bool          `flag:"verbose" description:"Enable verbose output"`
+	Version       bool          `flag:"v" description:"Show version"`
 }
 
 // Start defines the "start" command cli flags and options
@@ -111,6 +115,11 @@ type Env struct {
 
 // Run is the main cli handler
 func (g *Limes) Run(cmd *Limes, p writ.Path, positional []string) {
+	if g.Version {
+		fmt.Printf("limes %v compiled on %v\n", version, date)
+		return
+	}
+
 	p.Last().ExitHelp(errors.New("COMMAND is required"))
 }
 
