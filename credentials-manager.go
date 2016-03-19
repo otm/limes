@@ -208,7 +208,6 @@ func (m *CredentialsExpirationManager) Region() string {
 		return ""
 	}
 
-	fmt.Println("Region is: ", profile.Region)
 	return profile.Region
 }
 
@@ -246,8 +245,17 @@ func (m *CredentialsExpirationManager) AssumeRole(name, MFA string) error {
 		}
 	}
 
-	fmt.Println("Assuming: ", name)
-	return m.AssumeRoleARN(name, profile.RoleARN, profile.MFASerial, MFA)
+	errAssume := m.AssumeRoleARN(name, profile.RoleARN, profile.MFASerial, MFA)
+	if errAssume != nil {
+		return errAssume
+	}
+
+	err := writeAwsConfig(profile.Region)
+	if err != nil {
+		fmt.Fprintf(errout, "error updating region: %v\n", err)
+	}
+
+	return nil
 }
 
 // RetrieveRole will assume and fetch temporary credentials, but does not update

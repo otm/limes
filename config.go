@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -51,6 +52,7 @@ const (
 	awsRenamePrefix    = "limes."
 	awsAccessKeyEnv    = "AWS_ACCESS_KEY_ID"
 	awsSecretKeyEnv    = "AWS_SECRET_ACCESS_KEY"
+	limesConfFlag      = "generatedBy=limes"
 )
 
 var (
@@ -126,6 +128,28 @@ func credentialsInAWSConfigFile() (active bool, err error) {
 	return false, nil
 }
 
+func limesGeneratedConfigFile() (active bool, err error) {
+	home, err := homeDir()
+	if err != nil {
+		return false, fmt.Errorf("unable to fetch user information: %v", err)
+	}
+
+	file, err := os.Open(filepath.Join(home, awsConfDir, awsConfigFile))
+	if err != nil {
+		return false, err
+	}
+	defer file.Close()
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		txt := scanner.Text()
+		if strings.Contains(txt, "generatedBy=limes") {
+			return true, errKeyPairInAWSConfigFile
+		}
+	}
+
+	return false, nil
+}
+
 func activeAWSCredentialsFile() (active bool, err error) {
 	home, err := homeDir()
 	if err != nil {
@@ -180,4 +204,35 @@ func homeDir() (homeDir string, err error) {
 	}
 
 	return "", fmt.Errorf("fallback failed, set `HOME` environment variable")
+}
+
+func writeAwsConfig(region string) error {
+	configFile := os.Getenv("AWS_CONFIG_FILE")
+	if configFile == "" {
+		home, err := homeDir()
+		if err != nil {
+			return err
+		}
+		configFile = filepath.Join(home, awsConfDir, awsConfigFile)
+	}
+
+	active, err := activeAWSConfigFile()
+	if err != nil {
+		return err
+	}
+
+	if active {
+		limesGenerated, err := limesGeneratedConfigFile()
+		if err != nil {
+			return err
+		}
+		if !limesGenerated {
+			return errActiveAWSConfigFile
+		}
+	}
+
+	conf := []byte(fmt.Sprintf("[default]\nregion=%s\n%s", region, limesConfFlag))
+	ioutil.WriteFile(configFile, conf, 0600)
+
+	return nil
 }
