@@ -16,8 +16,9 @@ import (
 
 // Common errors for credential manager
 var (
-	errMFANeeded      = fmt.Errorf("MFA needed")
-	errUnknownProfile = fmt.Errorf("Unknown profile")
+	errMFANeeded        = fmt.Errorf("MFA needed")
+	errUnknownProfile   = fmt.Errorf("Unknown profile")
+	errProtectedProfile = fmt.Errorf("Protected profile")
 	// errSourceSessionExpired  = fmt.Errorf("Source session expired")
 )
 
@@ -230,6 +231,10 @@ func (m *CredentialsExpirationManager) AssumeRole(name, MFA string) error {
 	profile, ok := m.config.profiles[name]
 	if !ok {
 		return errUnknownProfile
+	}
+
+	if profile.protected() {
+		return errProtectedProfile
 	}
 
 	log.Printf("source profile: %v, needed source profile: %v\n", m.sourceProfileName, profile.SourceProfile)

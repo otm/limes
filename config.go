@@ -37,6 +37,11 @@ type Profile struct {
 	RoleARN            string `yaml:"role_arn"`
 	SourceProfile      string `yaml:"source_profile"`
 	RoleSessionName    string `yaml:"role_session_name"`
+	Protected          bool   `yaml:"protected"`
+}
+
+func (p Profile) protected() bool {
+	return p.Protected
 }
 
 const (
