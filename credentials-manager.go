@@ -16,11 +16,9 @@ import (
 
 // Common errors for credential manager
 var (
-	errMissingProfileDefault = fmt.Errorf("missing profile: default")
-	errMFANeeded             = fmt.Errorf("MFA needed")
-	errBaseMFANeeded         = fmt.Errorf("Base MFA needed")
-	errUnknownProfile        = fmt.Errorf("Unknown profile")
-	errSourceSessionExpired  = fmt.Errorf("Source session expired")
+	errMFANeeded      = fmt.Errorf("MFA needed")
+	errUnknownProfile = fmt.Errorf("Unknown profile")
+	// errSourceSessionExpired  = fmt.Errorf("Source session expired")
 )
 
 type fatalError struct {
@@ -42,15 +40,22 @@ func isFatalError(err error) bool {
 	return ok
 }
 
+// AwsCredentials is a wrapper of sts.Credentials that adds Region
+type AwsCredentials struct {
+	sts.Credentials
+	Region string
+}
+
 // CredentialsManager provides an interface
 type CredentialsManager interface {
 	Role() string
-	RetrieveRole(name, MFA string) (*sts.Credentials, error)
+	RetrieveRole(name, MFA string) (*AwsCredentials, error)
 	RetrieveRoleARN(RoleARN, MFASerial, MFA string) (*sts.Credentials, error)
 	AssumeRole(name, mfa string) error
 	AssumeRoleARN(name, RoleARN, MFASerial, MFA string) error
 	GetCredentials() (*sts.Credentials, error)
 	SetSourceProfile(name, mfa string) error
+	Region() string
 }
 
 // CredentialsExpirationManager is responsible for renewing a set of credentials
@@ -122,7 +127,7 @@ func (m *CredentialsExpirationManager) SetSourceProfile(name, mfa string) error 
 	profile, ok := m.config.profiles[name]
 	if !ok {
 		m.err = errUnknownProfile
-		if name != "default" {
+		if name != profileDefault {
 			return makeFatal(errUnknownProfile)
 		}
 		return errUnknownProfile
@@ -188,6 +193,24 @@ func (m *CredentialsExpirationManager) Role() string {
 	return m.role
 }
 
+// Region returns the configured region for the profile or empty string if not
+// defined
+func (m *CredentialsExpirationManager) Region() string {
+	role := m.role
+	if role == "" {
+		role = profileDefault
+	}
+
+	profile, ok := m.config.profiles[role]
+	if !ok {
+		fmt.Printf("FAiled to lookup: %v\n", role)
+		return ""
+	}
+
+	fmt.Println("Region is: ", profile.Region)
+	return profile.Region
+}
+
 // Refresher starts a Go routine and refreshes the credentials
 func (m *CredentialsExpirationManager) Refresher() {
 	for {
@@ -224,22 +247,31 @@ func (m *CredentialsExpirationManager) AssumeRole(name, MFA string) error {
 
 // RetrieveRole will assume and fetch temporary credentials, but does not update
 // the role and credentials stored by the manager.
-func (m *CredentialsExpirationManager) RetrieveRole(name, MFA string) (*sts.Credentials, error) {
+func (m *CredentialsExpirationManager) RetrieveRole(name, MFA string) (*AwsCredentials, error) {
 	profile, ok := m.config.profiles[name]
 	if !ok {
 		return nil, errUnknownProfile
 	}
 
 	if profile.SourceProfile == m.sourceProfileName && !m.sourceCredentialsExpired() {
-		return m.RetrieveRoleARN(profile.RoleARN, profile.MFASerial, MFA)
+		c, err := m.RetrieveRoleARN(profile.RoleARN, profile.MFASerial, MFA)
+		if err != nil {
+			return nil, err
+		}
+		return &AwsCredentials{Credentials: *c, Region: profile.Region}, nil
 	}
 
-	cm := newTemporaryCredentialsManager("default", m.config, "")
+	cm := newTemporaryCredentialsManager(profileDefault, m.config, "")
 	err := cm.SetSourceProfile(profile.SourceProfile, MFA)
 	if err != nil {
 		return nil, err
 	}
-	return cm.RetrieveRoleARN(profile.RoleARN, profile.MFASerial, MFA)
+
+	c, err := cm.RetrieveRoleARN(profile.RoleARN, profile.MFASerial, MFA)
+	if err != nil {
+		return nil, err
+	}
+	return &AwsCredentials{Credentials: *c, Region: profile.Region}, nil
 }
 
 // RetrieveRoleARN assumes and fetch temporary credentials based on the RoleArn
@@ -350,7 +382,7 @@ func (m *CredentialsExpirationManager) refreshCredentials() error {
 		return nil
 	}
 
-	if m.role == "" || m.role == "default" {
+	if m.role == "" || m.role == profileDefault {
 		// Do not refresh main default role, let it time out
 		return nil
 	}

@@ -21,6 +21,13 @@ import (
 	"google.golang.org/grpc/grpclog"
 )
 
+type awsEnv struct {
+	AccessKeyID     string
+	SecretAccessKey string
+	SessionToken    string
+	Region          string
+}
+
 type cliClient struct {
 	conn *grpc.ClientConn
 	srv  pb.InstanceMetaServiceClient
@@ -140,7 +147,7 @@ func (c *cliClient) stop(args *Stop) error {
 	return nil
 }
 
-func (c *cliClient) status(args *Status) error {
+func (c *cliClient) printStatus(args *Status) error {
 	status := true
 
 	service := "up"
@@ -195,6 +202,10 @@ func (c *cliClient) status(args *Status) error {
 	return err
 }
 
+func (c *cliClient) status() (*pb.StatusReply, error) {
+	return c.srv.Status(context.Background(), &pb.Void{})
+}
+
 func (c *cliClient) assumeRole(role string, MFA string) error {
 	r, err := c.srv.AssumeRole(context.Background(), &pb.AssumeRoleRequest{Name: role, Mfa: MFA})
 	if err != nil {
@@ -211,7 +222,6 @@ func (c *cliClient) assumeRole(role string, MFA string) error {
 }
 
 func (c *cliClient) retreiveRole(role, MFA string) (*credentials.Credentials, error) {
-	fmt.Println("role:", role, ", mfa:", MFA)
 	r, err := c.srv.RetrieveRole(context.Background(), &pb.AssumeRoleRequest{Name: role, Mfa: MFA})
 	if err != nil {
 		if grpc.Code(err) == codes.FailedPrecondition && grpc.ErrorDesc(err) == errMFANeeded.Error() {
@@ -227,6 +237,28 @@ func (c *cliClient) retreiveRole(role, MFA string) (*credentials.Credentials, er
 		r.SecretAccessKey,
 		r.SessionToken,
 	)
+
+	return creds, nil
+}
+
+func (c *cliClient) retreiveAWSEnv(role, MFA string) (awsEnv, error) {
+	r, err := c.srv.RetrieveRole(context.Background(), &pb.AssumeRoleRequest{Name: role, Mfa: MFA})
+	if err != nil {
+		if grpc.Code(err) == codes.FailedPrecondition && grpc.ErrorDesc(err) == errMFANeeded.Error() {
+			return c.retreiveAWSEnv(role, askMFA())
+		}
+
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		return awsEnv{}, err
+	}
+
+	fmt.Println("client got region: ", r.Region)
+	creds := awsEnv{
+		AccessKeyID:     r.AccessKeyId,
+		SecretAccessKey: r.SecretAccessKey,
+		SessionToken:    r.SessionToken,
+		Region:          r.Region,
+	}
 
 	return creds, nil
 }

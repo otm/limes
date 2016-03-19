@@ -24,6 +24,7 @@ var date = ""
 const (
 	configFilePath   = ".limes/config"
 	domainSocketPath = ".limes/socket"
+	profileDefault   = "default"
 )
 
 //go:generate protoc -I proto/ proto/ims.proto --go_out=plugins=grpc:proto
@@ -130,7 +131,7 @@ func (l *Start) Run(cmd *Limes, p writ.Path, positional []string) {
 	}
 
 	if cmd.Profile == "" {
-		cmd.Profile = "default"
+		cmd.Profile = profileDefault
 	}
 	StartService(cmd.ConfigFile, cmd.Address, cmd.Profile, l.MFA, l.Port, l.Fake)
 }
@@ -154,7 +155,7 @@ func (l *Status) Run(cmd *Limes, p writ.Path, positional []string) {
 
 	rpc := newCliClient(cmd.Address)
 	defer rpc.close()
-	rpc.status(l)
+	rpc.printStatus(l)
 }
 
 // Run is the handler for the fix command
@@ -177,8 +178,8 @@ func (l *Fix) Run(cmd *Limes, p writ.Path, positional []string) {
 	}
 
 	exists := func(path string) bool {
-		_, err := os.Stat(path)
-		if err != nil {
+		_, staterr := os.Stat(path)
+		if staterr != nil {
 			return false
 		}
 		return true
@@ -253,18 +254,34 @@ func (l *RunCmd) Run(cmd *Limes, p writ.Path, positional []string) {
 
 	command := exec.Command(positional[0], positional[1:]...)
 
+	rpc := newCliClient(cmd.Address)
+	defer rpc.close()
+
 	if cmd.Profile != "" {
-		rpc := newCliClient(cmd.Address)
-		defer rpc.close()
-		creds, err := rpc.retreiveRole(cmd.Profile, "")
+		creds, err := rpc.retreiveAWSEnv(cmd.Profile, "")
 		if err != nil {
+			fmt.Fprintf(errout, "error retreving profile: %v", err)
 			os.Exit(1)
 		}
-		cred, _ := creds.Get()
 		command.Env = append(os.Environ(),
-			"AWS_ACCESS_KEY_ID="+cred.AccessKeyID,
-			"AWS_SECRET_ACCESS_KEY="+cred.SecretAccessKey,
-			"AWS_SESSION_TOKEN="+cred.SessionToken,
+			"AWS_ACCESS_KEY_ID="+creds.AccessKeyID,
+			"AWS_SECRET_ACCESS_KEY="+creds.SecretAccessKey,
+			"AWS_SESSION_TOKEN="+creds.SessionToken,
+			"AWS_DEFAULT_REGION="+creds.Region,
+			"AWS_REGION="+creds.Region,
+		)
+	} else {
+		r, err := rpc.status()
+		if err != nil || r.AccessKeyId == "" {
+			fmt.Fprintf(errout, "error retreving profile: %v", err)
+			os.Exit(1)
+		}
+		command.Env = append(os.Environ(),
+			"AWS_ACCESS_KEY_ID="+r.AccessKeyId,
+			"AWS_SECRET_ACCESS_KEY="+r.SecretAccessKey,
+			"AWS_SESSION_TOKEN="+r.SessionToken,
+			"AWS_DEFAULT_REGION="+r.Region,
+			"AWS_REGION="+r.Region,
 		)
 	}
 
@@ -320,26 +337,30 @@ func (l *Env) Run(cmd *Limes, p writ.Path, positional []string) {
 		profile = positional[0]
 	}
 
-	if profile == "" {
-		p.Last().ExitHelp(nil)
-	}
-
 	rpc := newCliClient(cmd.Address)
 	defer rpc.close()
 
-	creds, err := rpc.retreiveRole(profile, "")
+	if profile == "" {
+		r, err := rpc.status()
+		if err != nil {
+			p.Last().ExitHelp(fmt.Errorf(lookupCorrection(err)))
+		}
+		profile = r.Role
+		if profile == "" {
+			p.Last().ExitHelp(nil)
+		}
+	}
+
+	credentials, err := rpc.retreiveAWSEnv(profile, "")
 	if err != nil {
 		fmt.Fprintf(errout, "error retreiving profile: %v\n", err)
-		os.Exit(1)
-	}
-	credentials, err := creds.Get()
-	if err != nil {
-		fmt.Fprintf(errout, "error unpacking profile: %v", err)
 		os.Exit(1)
 	}
 	fmt.Fprintf(out, "export AWS_ACCESS_KEY_ID=%v\n", credentials.AccessKeyID)
 	fmt.Fprintf(out, "export AWS_SECRET_ACCESS_KEY=%v\n", credentials.SecretAccessKey)
 	fmt.Fprintf(out, "export AWS_SESSION_TOKEN=%v\n", credentials.SessionToken)
+	fmt.Fprintf(out, "export AWS_DEFAULT_REGION=%v\n", credentials.Region)
+	fmt.Fprintf(out, "export AWS_REGION=%v\n", credentials.Region)
 	fmt.Fprintf(out, "# Run this command to configure your shell:\n")
 	fmt.Fprintf(out, "# eval \"$(limes env %s)\"\n", profile)
 }

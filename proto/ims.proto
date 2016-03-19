@@ -24,6 +24,7 @@ message StatusReply {
   string SecretAccessKey = 4;
   string SessionToken = 5;
   string Expiration = 6;
+  string Region = 7;
 }
 
 message StopReply {

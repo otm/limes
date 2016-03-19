@@ -11,6 +11,8 @@ import (
 	"golang.org/x/net/context"
 )
 
+var grpcErrorf = grpc.Errorf
+
 // CliHandler process calls from the cli tool
 type CliHandler struct {
 	address      string
@@ -58,7 +60,7 @@ func (h *CliHandler) Status(ctx context.Context, in *pb.Void) (*pb.StatusReply, 
 	creds, err := h.credsManager.GetCredentials()
 	if err != nil {
 		if err == errMFANeeded || err == errUnknownProfile {
-			return nil, grpc.Errorf(codes.FailedPrecondition, err.Error())
+			return nil, grpcErrorf(codes.FailedPrecondition, err.Error())
 		}
 		return nil, err
 	}
@@ -70,6 +72,7 @@ func (h *CliHandler) Status(ctx context.Context, in *pb.Void) (*pb.StatusReply, 
 		SecretAccessKey: *creds.SecretAccessKey,
 		SessionToken:    *creds.SessionToken,
 		Expiration:      creds.Expiration.String(),
+		Region:          h.credsManager.Region(),
 	}, nil
 }
 
@@ -85,7 +88,7 @@ func (h *CliHandler) AssumeRole(ctx context.Context, in *pb.AssumeRoleRequest) (
 	err := h.credsManager.AssumeRole(in.Name, in.Mfa)
 	if err != nil {
 		if err == errMFANeeded || err == errUnknownProfile {
-			return nil, grpc.Errorf(codes.FailedPrecondition, err.Error())
+			return nil, grpcErrorf(codes.FailedPrecondition, err.Error())
 		}
 		return nil, err
 	}
@@ -93,7 +96,7 @@ func (h *CliHandler) AssumeRole(ctx context.Context, in *pb.AssumeRoleRequest) (
 	creds, err := h.credsManager.GetCredentials()
 	if err != nil {
 		if err == errMFANeeded || err == errUnknownProfile {
-			return nil, grpc.Errorf(codes.FailedPrecondition, err.Error())
+			return nil, grpcErrorf(codes.FailedPrecondition, err.Error())
 		}
 		return nil, err
 	}
@@ -105,6 +108,7 @@ func (h *CliHandler) AssumeRole(ctx context.Context, in *pb.AssumeRoleRequest) (
 		SecretAccessKey: *creds.SecretAccessKey,
 		SessionToken:    *creds.SessionToken,
 		Expiration:      creds.Expiration.String(),
+		Region:          h.credsManager.Region(),
 	}, nil
 }
 
@@ -113,11 +117,12 @@ func (h *CliHandler) RetrieveRole(ctx context.Context, in *pb.AssumeRoleRequest)
 	creds, err := h.credsManager.RetrieveRole(in.Name, in.Mfa)
 	if err != nil {
 		if err == errMFANeeded || err == errUnknownProfile {
-			return nil, grpc.Errorf(codes.FailedPrecondition, err.Error())
+			return nil, grpcErrorf(codes.FailedPrecondition, err.Error())
 		}
 		return nil, err
 	}
 
+	// TODO: FOO
 	return &pb.StatusReply{
 		Error:           "",
 		Role:            h.credsManager.Role(),
@@ -125,6 +130,7 @@ func (h *CliHandler) RetrieveRole(ctx context.Context, in *pb.AssumeRoleRequest)
 		SecretAccessKey: *creds.SecretAccessKey,
 		SessionToken:    *creds.SessionToken,
 		Expiration:      creds.Expiration.String(),
+		Region:          creds.Region,
 	}, nil
 }
 

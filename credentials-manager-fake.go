@@ -15,6 +15,12 @@ func (m *FakeCredentialsManager) Role() string {
 	return "dummy-role"
 }
 
+// Region returns the configured region for the profile or empty string if not
+// defined
+func (m *FakeCredentialsManager) Region() string {
+	return "eu-foo-1"
+}
+
 // AssumeRole does nothing
 func (m *FakeCredentialsManager) AssumeRole(name, mfa string) error {
 	return nil
@@ -26,8 +32,12 @@ func (m *FakeCredentialsManager) SetSourceProfile(name, mfa string) error {
 }
 
 // RetrieveRole return a dummy role
-func (m *FakeCredentialsManager) RetrieveRole(name, MFA string) (*sts.Credentials, error) {
-	return m.GetCredentials()
+func (m *FakeCredentialsManager) RetrieveRole(name, MFA string) (*AwsCredentials, error) {
+	c, _ := m.GetCredentials()
+	return &AwsCredentials{
+		Credentials: *c,
+		Region:      m.Region(),
+	}, nil
 }
 
 // RetrieveRoleARN returns dummy role
