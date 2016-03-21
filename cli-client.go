@@ -177,7 +177,7 @@ func (c *cliClient) printStatus(args *Status) error {
 	if errConf != nil {
 		env = "nok"
 		status = false
-		defer fmt.Fprintf(errout, "run 'limes fix' to automaticly resolv the problem\n")
+		defer fmt.Fprintf(errout, "run 'limes fix' to automatically resolve the problem\n")
 		defer fmt.Fprintf(errout, "\nwarning: %v\n", errConf)
 	}
 
