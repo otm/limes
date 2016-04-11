@@ -255,6 +255,11 @@ func (m *CredentialsExpirationManager) AssumeRole(name, MFA string) error {
 		fmt.Fprintf(errout, "error updating region: %v\n", err)
 	}
 
+	err = writeAwsCredentials(profile.Region)
+	if err != nil {
+		fmt.Fprintf(errout, "error updating region: %v\n", err)
+	}
+
 	return nil
 }
 

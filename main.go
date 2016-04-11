@@ -196,6 +196,7 @@ func (l *Fix) Run(cmd *Limes, p writ.Path, positional []string) {
 
 		originalPath = filepath.Join(home, awsConfDir, awsConfigFile)
 		movedPath = filepath.Join(home, awsConfDir, awsRenamePrefix+awsConfigFile)
+		fmt.Printf("loooking for: %v\n", movedPath)
 		if exists(movedPath) {
 			fmt.Fprintf(out, "# restoring: %v\n", originalPath)
 			exitOnErr(os.Rename(movedPath, originalPath))
@@ -210,7 +211,7 @@ func (l *Fix) Run(cmd *Limes, p writ.Path, positional []string) {
 
 	for err := checkActiveAWSConfig(); err != nil; err = checkActiveAWSConfig() {
 		switch err {
-		case errActiveAWSCredentialsFile:
+		case errKeyPairInAWSCredentialsFile:
 			originalPath := filepath.Join(home, awsConfDir, awsCredentialsFile)
 			movedPath := filepath.Join(home, awsConfDir, awsRenamePrefix+awsCredentialsFile)
 			fmt.Fprintf(out, "# moving: %v => %v\n", originalPath, movedPath)
