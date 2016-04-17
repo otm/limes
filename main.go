@@ -249,8 +249,13 @@ func (l *SwitchProfile) Run(cmd *Limes, p writ.Path, positional []string) {
 
 // Run is the handler for the run command
 func (l *RunCmd) Run(cmd *Limes, p writ.Path, positional []string) {
-	if l.HelpFlag {
+	if l.HelpFlag || len(positional) == 0 {
 		p.Last().ExitHelp(nil)
+	}
+
+	fmt.Println(positional[0], positional[1:])
+	if true {
+		return
 	}
 
 	command := exec.Command(positional[0], positional[1:]...)
