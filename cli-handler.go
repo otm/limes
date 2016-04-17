@@ -122,7 +122,6 @@ func (h *CliHandler) RetrieveRole(ctx context.Context, in *pb.AssumeRoleRequest)
 		return nil, err
 	}
 
-	// TODO: FOO
 	return &pb.StatusReply{
 		Error:           "",
 		Role:            h.credsManager.Role(),
