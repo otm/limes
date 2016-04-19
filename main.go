@@ -72,7 +72,7 @@ type Start struct {
 	HelpFlag bool   `flag:"h, help" description:"Display this message and exit"`
 	Fake     bool   `flag:"fake" description:"Do not connect to AWS"`
 	MFA      string `option:"m, mfa" description:"MFA token to start up server"`
-	Port     int    `option:"p, port" default:"80" description:"Port used by the metadata service"`
+	Port     int    `option:"p, port" default:"" description:"Port used by the metadata service, default: 80"`
 }
 
 // Stop defines the "stop" command cli flags and options
@@ -196,6 +196,7 @@ func (l *Fix) Run(cmd *Limes, p writ.Path, positional []string) {
 
 		originalPath = filepath.Join(home, awsConfDir, awsConfigFile)
 		movedPath = filepath.Join(home, awsConfDir, awsRenamePrefix+awsConfigFile)
+		fmt.Printf("loooking for: %v\n", movedPath)
 		if exists(movedPath) {
 			fmt.Fprintf(out, "# restoring: %v\n", originalPath)
 			exitOnErr(os.Rename(movedPath, originalPath))
@@ -210,7 +211,7 @@ func (l *Fix) Run(cmd *Limes, p writ.Path, positional []string) {
 
 	for err := checkActiveAWSConfig(); err != nil; err = checkActiveAWSConfig() {
 		switch err {
-		case errActiveAWSCredentialsFile:
+		case errKeyPairInAWSCredentialsFile:
 			originalPath := filepath.Join(home, awsConfDir, awsCredentialsFile)
 			movedPath := filepath.Join(home, awsConfDir, awsRenamePrefix+awsCredentialsFile)
 			fmt.Fprintf(out, "# moving: %v => %v\n", originalPath, movedPath)
@@ -248,8 +249,13 @@ func (l *SwitchProfile) Run(cmd *Limes, p writ.Path, positional []string) {
 
 // Run is the handler for the run command
 func (l *RunCmd) Run(cmd *Limes, p writ.Path, positional []string) {
-	if l.HelpFlag {
+	if l.HelpFlag || len(positional) == 0 {
 		p.Last().ExitHelp(nil)
+	}
+
+	fmt.Println(positional[0], positional[1:])
+	if true {
+		return
 	}
 
 	command := exec.Command(positional[0], positional[1:]...)

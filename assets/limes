@@ -1,9 +1,22 @@
 # bash completion for limes(8)                              -*- shell-script -*-
 
+__my_init_completion()
+{
+    COMPREPLY=()
+    _get_comp_words_by_ref cur prev words cword
+}
+
+
+
 _limes()
 {
     local cur prev words cword
-    _init_completion || return
+    if declare -F _init_completions >/dev/null 2>&1; then
+        _init_completion
+    else
+        __my_init_completion
+    fi
+    #_init_completion || return
 
     #cur="${COMP_WORDS[COMP_CWORD]}"
     #prev="${COMP_WORDS[COMP_CWORD-1]}"

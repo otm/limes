@@ -1,7 +1,7 @@
 # Limes
 Limes provides an easy work flow with MFA protected access keys, temporary credentials and access to multiple roles/accounts.
 
-Limes is a Local Instance MEtadata Service and emulates parts of the [AWS Instance Metadata Service](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html) running on Amazon Linux. The AWS SDK and AWS CLI can therefor utilize this service to authenticate.
+Limes is the Local Instance MEtadata Service and emulates parts of the [AWS Instance Metadata Service](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html) running on Amazon Linux. The AWS SDK and AWS CLI can therefor utilize this service to authenticate.
 
 ## Warning
 The AWS SDK refreshes credentials automatically when using limes. So **all** services will change profile if the profile is changed in limes.
@@ -30,6 +30,31 @@ sudo ip link set dev lo:metadata up
 sudo /sbin/ifconfig lo0 alias 169.254.169.254
 ```
 
+## Bash Completion
+
+##### Linux:
+```
+wget -O /etc/bash_completion.d/limes https://raw.githubusercontent.com/otm/limes/master/assets/limes
+```
+
+##### Mac
+```
+wget -O $(brew --prefix)/etc/bash_completion.d/limes https://raw.githubusercontent.com/otm/limes/master/assets/limes
+```
+
+##### Fixing Completion for AWS CLI
+There is currently a bug in the completer for the AWS CLI that makes it misbehave when used with `_command_offset`. This can be solved by adding a secondary completion entry for the AWS CLI. To make this persistent add it to your bash configuration.  
+
+**Linux**
+```
+complete -C '/usr/local/bin/aws_completer' limes run aws
+```
+
+**Mac (Brew)**
+```
+complete -C "$(brew --prefix)/bin/aws_completer" limes run aws
+```
+
 ## Configuring IAM (Identity and Access Management)
 To be done
 
@@ -50,15 +75,26 @@ Running `limes` in your terminal prints usage information.
 The service is started with `limes start`.
 
 #### Assuming Profiles
-A profile is assumed with `limes profile <profile-name>`, where profile-name is
-a configured profile. Please note that this does not refer to AWS profiles but
-profiles configured in limes.
+A profile is assumed with `limes assume <profile-name>`, where profile-name is a configured profile. Please note that this does not refer to AWS profiles but profiles configured in limes.
+
+#### Running Applications with Alternate Profile
+If you have assumed a role on limes you might want to run an application once with an alternate profile. This is possible without assuming the profile with the `run` subcommand.
+
+```
+limes --profile <name> run <application> [args...]
+```
+
+**Tip**
+With `limes --profile <name> run bash` it is possible to quickly start a shell with exported environment variables that is valid for an hour.
+
+#### Protected Profiles
+By adding `protected: true` to your profile it will not be possible to assume that role. It will only be possible to utilize the subcommands `run` and `env`.
 
 #### Service Status
-By running `limes status` it is possible to see the current status, and also it can detect common problems and misconfigurations.
+By running `limes status` it is possible to see the current status, and also it can detect common problems and misconfiguration.
 
 ## Known Problems
-If AWS environment variables, `.aws/credentials` or `.aws/config` are present there is a chance that the limes does not work. This can be checked with `limes status`
+If AWS environment variables, `.aws/credentials` or `.aws/config` are present there is a chance that the limes does not work. This can be checked with `limes status`.
 
 ## Security
 The service should be configured on the loop back device, and only accessible from the host it is running on.
@@ -66,10 +102,6 @@ The service should be configured on the loop back device, and only accessible fr
 **Note:** It is important not to run any service that could forwards request on the host running Limes as this would be a security risk. However, this is no difference from the setup on an Amazon Linux instance in AWS. If an attacker could forward requests to 169.254.169.254/24 your credentials could be compromised. Please note that an attacker could utilize a DNS to resolve to this address, so always be aware where you forward requests to.  
 
 ## Roadmap
-* Add support for running commands
-* Add support for providing MFA with client to enable to start as a service
-* Add support for temporary move/remove AWS configuration files
-* Add support for exporting environment variables
 * Windows support (If I get someone to test it)
 
 ## Build

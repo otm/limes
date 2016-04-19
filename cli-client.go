@@ -67,9 +67,20 @@ func StartService(configFile, address, profileName, MFA string, port int, fake b
 			log.Fatalf("Error reading config: %s\n", configErr.Error())
 		}
 
-		configParseErr := yaml.Unmarshal(configContents, &config.profiles)
+		configParseErr := yaml.Unmarshal(configContents, &config)
 		if configParseErr != nil {
 			log.Fatalf("Error in parsing config file: %s\n", configParseErr.Error())
+		}
+
+		if len(config.Profiles) == 0 {
+			log.Info("No profiles found, falling back to old config format.\n")
+			configParseErr := yaml.Unmarshal(configContents, &config.Profiles)
+			if configParseErr != nil {
+				log.Fatalf("Error in parsing config file: %s\n", configParseErr.Error())
+			}
+			if len(config.Profiles) > 0 {
+				log.Warning("WARNING: old depricated config format is used.\n")
+			}
 		}
 	} else {
 		log.Debug("No configuration file given\n")
@@ -79,6 +90,14 @@ func StartService(configFile, address, profileName, MFA string, port int, fake b
 		log.Debug("Removing socket: %v\n", address)
 		os.Remove(address)
 	}()
+
+	if port == 0 {
+		port = config.Port
+	}
+
+	if port == 0 {
+		port = 80
+	}
 
 	// Startup the HTTP server and respond to requests.
 	listener, err := net.ListenTCP("tcp", &net.TCPAddr{
