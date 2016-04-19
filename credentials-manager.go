@@ -125,7 +125,7 @@ func (m *CredentialsExpirationManager) SetSourceProfile(name, mfa string) error 
 	m.err = nil
 
 	log.Printf("Setting base profile: %v", name)
-	profile, ok := m.config.profiles[name]
+	profile, ok := m.config.Profiles[name]
 	if !ok {
 		m.err = errUnknownProfile
 		if name != profileDefault {
@@ -202,7 +202,7 @@ func (m *CredentialsExpirationManager) Region() string {
 		role = profileDefault
 	}
 
-	profile, ok := m.config.profiles[role]
+	profile, ok := m.config.Profiles[role]
 	if !ok {
 		fmt.Printf("FAiled to lookup: %v\n", role)
 		return ""
@@ -227,7 +227,7 @@ func (m *CredentialsExpirationManager) Refresher() {
 // AssumeRole changes (assumes) the role `name`. An optional MFA can be passed
 // to the function, if set to "" the MFA is ignored
 func (m *CredentialsExpirationManager) AssumeRole(name, MFA string) error {
-	profile, ok := m.config.profiles[name]
+	profile, ok := m.config.Profiles[name]
 	if !ok {
 		return errUnknownProfile
 	}
@@ -266,7 +266,7 @@ func (m *CredentialsExpirationManager) AssumeRole(name, MFA string) error {
 // RetrieveRole will assume and fetch temporary credentials, but does not update
 // the role and credentials stored by the manager.
 func (m *CredentialsExpirationManager) RetrieveRole(name, MFA string) (*AwsCredentials, error) {
-	profile, ok := m.config.profiles[name]
+	profile, ok := m.config.Profiles[name]
 	if !ok {
 		return nil, errUnknownProfile
 	}

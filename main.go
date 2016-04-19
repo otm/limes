@@ -72,7 +72,7 @@ type Start struct {
 	HelpFlag bool   `flag:"h, help" description:"Display this message and exit"`
 	Fake     bool   `flag:"fake" description:"Do not connect to AWS"`
 	MFA      string `option:"m, mfa" description:"MFA token to start up server"`
-	Port     int    `option:"p, port" default:"80" description:"Port used by the metadata service"`
+	Port     int    `option:"p, port" default:"" description:"Port used by the metadata service, default: 80"`
 }
 
 // Stop defines the "stop" command cli flags and options

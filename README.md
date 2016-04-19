@@ -1,7 +1,7 @@
 # Limes
 Limes provides an easy work flow with MFA protected access keys, temporary credentials and access to multiple roles/accounts.
 
-Limes is a Local Instance MEtadata Service and emulates parts of the [AWS Instance Metadata Service](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html) running on Amazon Linux. The AWS SDK and AWS CLI can therefor utilize this service to authenticate.
+Limes is the Local Instance MEtadata Service and emulates parts of the [AWS Instance Metadata Service](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-metadata.html) running on Amazon Linux. The AWS SDK and AWS CLI can therefor utilize this service to authenticate.
 
 ## Warning
 The AWS SDK refreshes credentials automatically when using limes. So **all** services will change profile if the profile is changed in limes.
@@ -30,7 +30,7 @@ sudo ip link set dev lo:metadata up
 sudo /sbin/ifconfig lo0 alias 169.254.169.254
 ```
 
-#### Bash Completion
+## Bash Completion
 
 ##### Linux:
 ```
@@ -39,7 +39,7 @@ wget -O /etc/bash_completion.d/limes https://raw.githubusercontent.com/otm/limes
 
 ##### Mac
 ```
-wget -O $(brew --prefix)/etc/bash_completion.d/limes
+wget -O $(brew --prefix)/etc/bash_completion.d/limes https://raw.githubusercontent.com/otm/limes/master/assets/limes
 ```
 
 ##### Fixing Completion for AWS CLI

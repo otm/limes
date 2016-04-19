@@ -13,13 +13,15 @@ import (
 
 // Config hold configuration read from the configuration file
 type Config struct {
-	profiles Profiles
+	Port    int    `yaml:"port"`
+	Address string `yaml:"address"`
+	Profiles
 }
 
 // NewConfig returns a new Config struct
 func NewConfig() *Config {
 	config := &Config{
-		profiles: make(Profiles),
+		Profiles: make(Profiles),
 	}
 
 	return config

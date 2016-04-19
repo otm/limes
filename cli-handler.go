@@ -136,9 +136,9 @@ func (h *CliHandler) RetrieveRole(ctx context.Context, in *pb.AssumeRoleRequest)
 // Config returns the current configuration
 func (h *CliHandler) Config(ctx context.Context, in *pb.Void) (*pb.ConfigReply, error) {
 	res := &pb.ConfigReply{
-		Profiles: make(map[string]*pb.Profile, len(h.config.profiles)),
+		Profiles: make(map[string]*pb.Profile, len(h.config.Profiles)),
 	}
-	for name, profile := range h.config.profiles {
+	for name, profile := range h.config.Profiles {
 		res.Profiles[name] = &pb.Profile{
 			AwsAccessKeyID:     profile.AwsAccessKeyID,
 			AwsSecretAccessKey: profile.AwsSecretAccessKey,
