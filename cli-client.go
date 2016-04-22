@@ -79,7 +79,7 @@ func StartService(configFile, address, profileName, MFA string, port int, fake b
 				log.Fatalf("Error in parsing config file: %s\n", configParseErr.Error())
 			}
 			if len(config.Profiles) > 0 {
-				log.Warning("WARNING: old depricated config format is used.\n")
+				log.Warning("WARNING: old deprecated config format is used.\n")
 			}
 		}
 	} else {
