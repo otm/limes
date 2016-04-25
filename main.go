@@ -253,11 +253,6 @@ func (l *RunCmd) Run(cmd *Limes, p writ.Path, positional []string) {
 		p.Last().ExitHelp(nil)
 	}
 
-	fmt.Println(positional[0], positional[1:])
-	if true {
-		return
-	}
-
 	command := exec.Command(positional[0], positional[1:]...)
 
 	rpc := newCliClient(cmd.Address)
