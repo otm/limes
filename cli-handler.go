@@ -36,6 +36,13 @@ func NewCliHandler(address string, credsManager CredentialsManager, stop chan st
 // Start handles the cli start command
 func (h *CliHandler) Start() error {
 	// setupt socket
+	if _, err := os.Stat(h.address); err == nil {
+		errRemove := os.Remove(h.address)
+		if errRemove != nil {
+			return errRemove
+		}
+	}
+
 	h.log.Debug("Creating socket: %v\n", h.address)
 	localSocket, err := net.Listen("unix", h.address)
 	if err != nil {
