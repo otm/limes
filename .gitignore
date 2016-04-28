@@ -2,4 +2,6 @@ ims
 ims.conf
 limes
 limes_*
+build
+Limes*
 .vscode
