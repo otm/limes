@@ -115,5 +115,6 @@ go build
 If protobuf definitions are updated `protoc` is needed on the system. Installation instructions are available at https://github.com/google/protobuf. Ẅhen protoc is installed run go generate. Currently build with `libprotoc 3.1.0`.
 
 ```
+go get -u github.com/golang/protobuf/{proto,protoc-gen-go}
 go generate
 ```
