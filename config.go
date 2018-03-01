@@ -283,7 +283,7 @@ func writeAwsConfig(region string) error {
 		}
 	}
 
-	conf := []byte(fmt.Sprintf("[default]\nregion=%s\n%s", region, limesConfFlag))
+	conf := []byte(fmt.Sprintf("[default]\nregion=%s\n%s\n", region, limesConfFlag))
 	ioutil.WriteFile(configFile, conf, 0600)
 
 	return nil
@@ -314,7 +314,7 @@ func writeAwsCredentials(region string) error {
 		}
 	}
 
-	conf := []byte(fmt.Sprintf("[default]\nregion=%s\n%s", region, limesConfFlag))
+	conf := []byte(fmt.Sprintf("[default]\nregion=%s\n%s\n", region, limesConfFlag))
 	ioutil.WriteFile(configFile, conf, 0600)
 
 	return nil
