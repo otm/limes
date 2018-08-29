@@ -271,7 +271,6 @@ func (c *cliClient) retreiveAWSEnv(role, MFA string) (awsEnv, error) {
 		return awsEnv{}, err
 	}
 
-	fmt.Println("client got region: ", r.Region)
 	creds := awsEnv{
 		AccessKeyID:     r.AccessKeyId,
 		SecretAccessKey: r.SecretAccessKey,
