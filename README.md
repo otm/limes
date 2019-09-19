@@ -30,6 +30,8 @@ sudo ip link set dev lo:metadata up
 sudo /sbin/ifconfig lo0 alias 169.254.169.254
 ```
 
+To get a persistent configuration of Loop Back Device on Mac, checkout [this gist](https://gist.github.com/IanSavchenko/6734cb4ac8422399e60f34d7a68ccd44).
+
 ## Bash Completion
 
 ##### Linux:
