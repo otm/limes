@@ -1,6 +1,7 @@
 syntax = "proto3";
 
 option objc_class_prefix = "IMS";
+option go_package = ".";
 
 package ims;
 
