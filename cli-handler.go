@@ -15,6 +15,7 @@ var grpcErrorf = grpc.Errorf
 
 // CliHandler process calls from the cli tool
 type CliHandler struct {
+	pb.UnimplementedInstanceMetaServiceServer
 	address      string
 	stop         chan struct{}
 	log          Logger

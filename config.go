@@ -230,6 +230,11 @@ func activeAWSEnvironment() (active bool, err error) {
 
 func homeDir() (homeDir string, err error) {
 	usr, err := user.Current()
+	// find real user when called with sudo
+	sudoer := os.Getenv("SUDO_USER")
+	if sudoer != "" {
+		usr, err = user.Lookup(sudoer)
+	}
 	if err == nil {
 		return usr.HomeDir, nil
 	}
